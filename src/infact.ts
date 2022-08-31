@@ -1,4 +1,4 @@
-import { TAny, TClassConstructor, TFunction } from './types'
+import { TAny, TClassConstructor, TFunction, TObject } from './types'
 import { getConstructor } from './utils/helpers'
 import { log, logError, warn } from './utils/log'
 import { panic } from './utils/panic'
@@ -76,7 +76,7 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
             }
 
             if (isCircular) {
-                Object.assign(registry[instanceKey] as T, new classConstructor(...(resolvedParams as [])))
+                Object.assign(registry[instanceKey] as TObject, new classConstructor(...(resolvedParams as [])))
             } else {
                 registry[instanceKey] = new classConstructor(...(resolvedParams as []))
             }
