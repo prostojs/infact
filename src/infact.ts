@@ -135,7 +135,7 @@ export interface TInfactClassMeta<P extends TInfactConstructorParamMeta = TInfac
 export interface TInfactConstructorParamMeta {
     label?: string
     circular?: () => TClassConstructor
-    type: TFunction | undefined
+    type?: TFunction
     inject?: string | symbol
 }
 
