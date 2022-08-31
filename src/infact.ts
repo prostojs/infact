@@ -55,7 +55,8 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
                     if (typeof param.type === 'function') {
                         if ([String, Number, Date, Array].includes(param.type as TAny)) {
                             throw panic(`Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
-                                + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. The param was not resolved to a value.`)
+                                + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. The param was not resolved to a value.`
+                                + '\nHierarchy:\n' + hierarchy.join(' -> '))
                         }
                         resolvedParams[i] = this.get(param.type as TClassConstructor, mergedProvide, hierarchy)
                     }
@@ -67,8 +68,9 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
                     resolvedParams[i] = resolvedParams[i] ? await resolvedParams[i] : resolvedParams[i]
                 } catch (e) {
                     const param = params[i]
-                    logError(`Could not resolve "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
-                    + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`)                    
+                    logError(`Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
+                    + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`
+                    + '\nHierarchy:\n' + hierarchy.join(' -> '))                    
                     throw e
                 }
             }
@@ -78,13 +80,13 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
             } else {
                 registry[instanceKey] = new classConstructor(...(resolvedParams as []))
             }
-            log(`Class "${ classConstructor.name }" instantiated with: [${ resolvedParams.map(p => {
+            log(`Class "${ classConstructor.name }" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
                 switch (typeof p) {
                     case 'number':
                     case 'boolean':
                         return p
                     case 'string':
-                        return `"${ p }"`
+                        return `"${ __DYE_GREEN_BRIGHT__ }...${ __DYE_BLUE__ }"`
                     case 'object':
                         if (getConstructor(p)) return getConstructor(p).name
                         return '{}'
