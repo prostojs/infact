@@ -93,7 +93,7 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
             } else {
                 registry[instanceKey] = new classConstructor(...(resolvedParams as []))
             }
-            log(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ }" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
+            log(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ + __DYE_DIM__}" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
                 switch (typeof p) {
                     case 'number':
                     case 'boolean':
