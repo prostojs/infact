@@ -1,3 +1,7 @@
+## [0.0.6](https://github.com/prostojs/infact/compare/v0.0.5...v0.0.6) (2022-10-01)
+
+
+
 ## [0.0.5](https://github.com/prostojs/infact/compare/v0.0.4...v0.0.5) (2022-10-01)
 
 
