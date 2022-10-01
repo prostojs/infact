@@ -66,10 +66,20 @@ const infact = new Infact({
         // let's say we want to inject every string param with its index value
         return paramMeta.type === String ? (index + '') : undefined
     },
+
+    // storeProvideRegByInstance is optional flag
+    // if true it stores computed "provideRegistry" for the original instance
+    // which allowes to use "getForInstance" method inheriting the
+    // "provideRegistry" that was used when the original instance was created
+    storeProvideRegByInstance: true
 })
 
 // after all required metadata fields are mapped to
 // TInfactClassMeta interface everything is ready
 // to instantiate your classes instances:
 const mainInstance = infact.get(MainClass)
+
+// anotherInstance will be created (retrieved) with "provideRegistry" taken from mainInstance
+// (only if options.storeProvideRegByInstance flag is true)
+const anotherInstance = infact.getForInstance(mainInstance, ClildClass)
 ```

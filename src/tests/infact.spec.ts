@@ -70,6 +70,7 @@ const options: TInfactOptions = {
     resolveParam: (paramMeta) => {
         return paramMeta.type === String ? 'resolved string' : undefined
     },
+    storeProvideRegByInstance: true,
 }
 
 const infact = new Infact(options)
@@ -132,5 +133,10 @@ describe('infact', () => {
 
     it('must use resolveParam function and inject provided value', () => {
         expect(c2.str).toBe('resolved string')
+    })
+
+    it('must get classInstance for instance', async () => {
+        const c2 = await infact.getForInstance(parent.child1, ProviderTestClass2)
+        expect(c2.config).toBe('custom by type')
     })
 })

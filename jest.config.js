@@ -22,6 +22,7 @@ module.exports = {
   globals: {
     __DYE_RED_BRIGHT__: dye('red-bright').open,
     __DYE_BOLD__: dye('bold').open,
+    __DYE_BOLD_OFF__: dye('bold').close,
     __DYE_RESET__: dye.reset,
     __DYE_RED__: dye('red').open,
     __DYE_COLOR_OFF__: dye('red').close,
