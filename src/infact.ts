@@ -5,12 +5,26 @@ import { panic } from './utils/panic'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
 
+type TRegistry = Record<string | symbol, unknown>
+
 export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
-    protected registry: Record<string | symbol, unknown> = {}
+    protected registry: TRegistry = {}
     
     protected provideRegByInstance: WeakMap<TObject, TProvideRegistry> = new WeakMap()
 
+    protected scopes: Record<string | symbol, TRegistry> = {}
+
     constructor(protected options: TInfactOptions<T>) {}
+
+    public registerScope(scopeId: string | symbol) {
+        if (!this.scopes[scopeId]) {
+            this.scopes = {}
+        }
+    }
+
+    public unregisterScope(scopeId: string | symbol) {
+        delete this.scopes[scopeId]
+    }
 
     public async getForInstance<T = unknown>(instance: TObject, classConstructor: TClassConstructor<T>): Promise<T> {
         return this.get(classConstructor, this.provideRegByInstance.get(instance) || {})
@@ -33,13 +47,24 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
                 + 'Please check if you used @Injectable decorator or if you properly typed arguments.\n'
                 + 'Hierarchy:\n' + hierarchy.join(' -> '))
         }
+        if (classMeta.scopeId && classMeta.global) {
+            throw panic(`Could not instantiate scoped Injectable "${ classConstructor.name }" for scope "${ classMeta.scopeId as string }". `
+            + 'The scoped Injectable is not supported for Global scope.\n'
+            + 'Hierarchy:\n' + hierarchy.join(' -> '))
+        }
+        if (classMeta.scopeId && !this.scopes[classMeta.scopeId]) {
+            throw panic(`Could not instantiate scoped Injectable "${ classConstructor.name }" for scope "${ classMeta.scopeId as string }". `
+            + 'The requested scope isn\'t registered.\n'
+            + 'Hierarchy:\n' + hierarchy.join(' -> '))
+        }
+        const scope = classMeta.scopeId ? this.scopes[classMeta.scopeId] : {} as TRegistry
         const instanceKey = Symbol.for(classConstructor as unknown as string)
         const mergedProvide = {...(provide || {}), ...(classMeta.provide || {})}
         if (mergedProvide[instanceKey]) {
             return { instance: await (getProvidedValue(mergedProvide[instanceKey]) as Promise<T>), mergedProvide }
         }
-        if (!this.registry[instanceKey] && !globalRegistry[instanceKey]) {
-            const registry = classMeta.global ? globalRegistry : this.registry
+        if (!this.registry[instanceKey] && !globalRegistry[instanceKey] && !scope[instanceKey]) {
+            const registry = classMeta.scopeId ? scope : classMeta.global ? globalRegistry : this.registry
             const params = classMeta.constructorParams || []
             const isCircular = !!params.find(p => !!p.circular)
             if (isCircular) {
@@ -108,7 +133,7 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
             }).join(', ') }]`)
         }
         hierarchy.pop()
-        return { instance: await ((this.registry[instanceKey] || globalRegistry[instanceKey]) as Promise<T>), mergedProvide }
+        return { instance: await ((scope[instanceKey] || this.registry[instanceKey] || globalRegistry[instanceKey]) as Promise<T>), mergedProvide }
     }
 }
 
@@ -143,6 +168,7 @@ export interface TInfactClassMeta<P extends TInfactConstructorParamMeta = TInfac
     injectable: boolean
     global?: boolean
     provide?: TProvideRegistry
+    scopeId?: string | symbol
     constructorParams: P[]
 }
 
