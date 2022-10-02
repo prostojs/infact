@@ -1,3 +1,12 @@
+## [0.0.7](https://github.com/prostojs/infact/compare/v0.0.6...v0.0.7) (2022-10-02)
+
+
+### Features
+
+* add scoped instances ([0c60511](https://github.com/prostojs/infact/commit/0c60511383122cce664d6c0e71aede32784ff500))
+
+
+
 ## [0.0.6](https://github.com/prostojs/infact/compare/v0.0.5...v0.0.6) (2022-10-01)
 
 
