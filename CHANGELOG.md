@@ -1,3 +1,12 @@
+## [0.0.8](https://github.com/prostojs/infact/compare/v0.0.7...v0.0.8) (2022-10-02)
+
+
+### Bug Fixes
+
+* fix registerScope method ([eab04ab](https://github.com/prostojs/infact/commit/eab04ab91b37d21d28151d5688a88b98885e6d9a))
+
+
+
 ## [0.0.7](https://github.com/prostojs/infact/compare/v0.0.6...v0.0.7) (2022-10-02)
 
 
