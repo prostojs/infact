@@ -1,3 +1,12 @@
+## [0.0.10](https://github.com/prostojs/infact/compare/v0.0.9...v0.0.10) (2022-10-02)
+
+
+### Features
+
+* type syncContextFn ([2b488d2](https://github.com/prostojs/infact/commit/2b488d2fa35269dd0f817a742da74d24aa7f3dd4))
+
+
+
 ## [0.0.9](https://github.com/prostojs/infact/compare/v0.0.8...v0.0.9) (2022-10-02)
 
 
