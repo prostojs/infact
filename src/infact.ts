@@ -18,7 +18,7 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
 
     public registerScope(scopeId: string | symbol) {
         if (!this.scopes[scopeId]) {
-            this.scopes = {}
+            this.scopes[scopeId] = {}
         }
     }
 
