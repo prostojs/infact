@@ -6,6 +6,7 @@ import { panic } from './utils/panic'
 const globalRegistry: Record<string | symbol, unknown> = {}
 
 type TRegistry = Record<string | symbol, unknown>
+type TSyncContextFn<T extends TInfactClassMeta = TInfactClassMeta> = (classMeta?: T) => void | unknown
 
 export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
     protected registry: TRegistry = {}
@@ -26,11 +27,11 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
         delete this.scopes[scopeId]
     }
 
-    public async getForInstance<IT = unknown>(instance: TObject, classConstructor: TClassConstructor<IT>, hierarchy?: string[], syncContextFn?: TFunction): Promise<IT> {
+    public async getForInstance<IT = unknown>(instance: TObject, classConstructor: TClassConstructor<IT>, hierarchy?: string[], syncContextFn?: TSyncContextFn<T>): Promise<IT> {
         return this.get(classConstructor, this.provideRegByInstance.get(instance) || {}, hierarchy, syncContextFn)
     }
 
-    public async get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TFunction): Promise<IT> {
+    public async get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TSyncContextFn<T>): Promise<IT> {
         const { instance, mergedProvide } = await this._get(classConstructor, provide, hierarchy, syncContextFn)
         if (this.options.storeProvideRegByInstance) {
             this.provideRegByInstance.set(instance as TObject, mergedProvide)
@@ -38,7 +39,7 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
         return instance
     }
 
-    private async _get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TFunction): Promise<{ instance: IT, mergedProvide: TProvideRegistry}> {
+    private async _get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TSyncContextFn<T>): Promise<{ instance: IT, mergedProvide: TProvideRegistry}> {
         hierarchy = (hierarchy || [])
         hierarchy.push(classConstructor.name)
         let classMeta: T | undefined
