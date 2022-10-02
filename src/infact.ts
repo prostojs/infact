@@ -26,25 +26,32 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
         delete this.scopes[scopeId]
     }
 
-    public async getForInstance<T = unknown>(instance: TObject, classConstructor: TClassConstructor<T>): Promise<T> {
-        return this.get(classConstructor, this.provideRegByInstance.get(instance) || {})
+    public async getForInstance<IT = unknown>(instance: TObject, classConstructor: TClassConstructor<IT>, hierarchy?: string[], syncContextFn?: TFunction): Promise<IT> {
+        return this.get(classConstructor, this.provideRegByInstance.get(instance) || {}, hierarchy, syncContextFn)
     }
 
-    public async get<T = unknown>(classConstructor: TClassConstructor<T>, provide?: TProvideRegistry, hierarchy?: string[]): Promise<T> {
-        const { instance, mergedProvide } = await this._get(classConstructor, provide, hierarchy)
+    public async get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TFunction): Promise<IT> {
+        const { instance, mergedProvide } = await this._get(classConstructor, provide, hierarchy, syncContextFn)
         if (this.options.storeProvideRegByInstance) {
             this.provideRegByInstance.set(instance as TObject, mergedProvide)
         }
         return instance
     }
 
-    private async _get<T = unknown>(classConstructor: TClassConstructor<T>, provide?: TProvideRegistry, hierarchy?: string[]): Promise<{ instance: T, mergedProvide: TProvideRegistry}> {
+    private async _get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TFunction): Promise<{ instance: IT, mergedProvide: TProvideRegistry}> {
         hierarchy = (hierarchy || [])
         hierarchy.push(classConstructor.name)
-        const classMeta = this.options.describeClass(classConstructor)
+        let classMeta: T | undefined
+        try {
+            classMeta = this.options.describeClass(classConstructor)
+        } catch (e) {
+            throw panic(`Could not instantiate "${ classConstructor.name }". `
+                + `An error occored on "describeClass" function.\n${ (e as Error).message }\n`
+                + 'Hierarchy:\n' + hierarchy.join(' -> '))
+        }
         if (!classMeta || !classMeta.injectable) {
             throw panic(`Could not instantiate Injectable "${ classConstructor.name }". `
-                + 'Please check if you used @Injectable decorator or if you properly typed arguments.\n'
+                + 'Please check if the class is injectable or if you properly typed arguments.\n'
                 + 'Hierarchy:\n' + hierarchy.join(' -> '))
         }
         if (classMeta.scopeId && classMeta.global) {
@@ -61,7 +68,8 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
         const instanceKey = Symbol.for(classConstructor as unknown as string)
         const mergedProvide = {...(provide || {}), ...(classMeta.provide || {})}
         if (mergedProvide[instanceKey]) {
-            return { instance: await (getProvidedValue(mergedProvide[instanceKey]) as Promise<T>), mergedProvide }
+            syncContextFn && syncContextFn(classMeta)
+            return { instance: await (getProvidedValue(mergedProvide[instanceKey]) as Promise<IT>), mergedProvide }
         }
         if (!this.registry[instanceKey] && !globalRegistry[instanceKey] && !scope[instanceKey]) {
             const registry = classMeta.scopeId ? scope : classMeta.global ? globalRegistry : this.registry
@@ -78,7 +86,7 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
                         resolvedParams[i] = getProvidedValue(mergedProvide[param.inject])
                     } else {
                         /* istanbul ignore next line */
-                        panic(`Could not inject ${JSON.stringify(param.inject)} to "${ classConstructor.name }" to argument ${ param.label ? `labeled as "${ param.label }"` : `with index ${ i }` }`
+                        throw panic(`Could not inject ${JSON.stringify(param.inject)} to "${ classConstructor.name }" to argument ${ param.label ? `labeled as "${ param.label }"` : `with index ${ i }` }`
                             + '\nHierarchy:\n' + hierarchy.join(' -> '))
                     }                        
                 } else if (this.options.resolveParam) {
@@ -96,13 +104,14 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
                                 + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. The param was not resolved to a value.`
                                 + '\nHierarchy:\n' + hierarchy.join(' -> '))
                         }
-                        resolvedParams[i] = this.get(param.type as TClassConstructor, mergedProvide, hierarchy)
+                        resolvedParams[i] = this.get(param.type as TClassConstructor, mergedProvide, hierarchy, syncContextFn)
                     }
                 }
             }
 
             for (let i = 0; i < resolvedParams.length; i++) {
                 try {
+                    syncContextFn && syncContextFn(classMeta)
                     resolvedParams[i] = resolvedParams[i] ? await resolvedParams[i] : resolvedParams[i]
                 } catch (e) {
                     const param = params[i]
@@ -133,7 +142,8 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
             }).join(', ') }]`)
         }
         hierarchy.pop()
-        return { instance: await ((scope[instanceKey] || this.registry[instanceKey] || globalRegistry[instanceKey]) as Promise<T>), mergedProvide }
+        syncContextFn && syncContextFn(classMeta)
+        return { instance: await ((scope[instanceKey] || this.registry[instanceKey] || globalRegistry[instanceKey]) as Promise<IT>), mergedProvide }
     }
 }
 
