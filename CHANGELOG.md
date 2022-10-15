@@ -1,3 +1,12 @@
+## [0.0.11](https://github.com/prostojs/infact/compare/v0.0.10...v0.0.11) (2022-10-15)
+
+
+### Features
+
+* set(get)ProvideRegByInstance ([29a700b](https://github.com/prostojs/infact/commit/29a700b1f2c49407b8b7124c7a2f73fd647008bd))
+
+
+
 ## [0.0.10](https://github.com/prostojs/infact/compare/v0.0.9...v0.0.10) (2022-10-02)
 
 
