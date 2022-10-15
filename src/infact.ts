@@ -17,6 +17,12 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
 
     constructor(protected options: TInfactOptions<T>) {}
 
+    protected _silent = false
+
+    public silent(value = true) {
+        this._silent = value
+    }
+
     public registerScope(scopeId: string | symbol) {
         if (!this.scopes[scopeId]) {
             this.scopes[scopeId] = {}
@@ -136,19 +142,21 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
             } else {
                 registry[instanceKey] = new classConstructor(...(resolvedParams as []))
             }
-            log(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ + __DYE_DIM__}" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
-                switch (typeof p) {
-                    case 'number':
-                    case 'boolean':
-                        return p
-                    case 'string':
-                        return `"${ __DYE_GREEN_BRIGHT__ }...${ __DYE_BLUE__ }"`
-                    case 'object':
-                        if (getConstructor(p)) return getConstructor(p).name
-                        return '{}'
-                    default: return '*'
-                }
-            }).join(', ') }]`)
+            if (!this._silent) {
+                log(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ + __DYE_DIM__}" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
+                    switch (typeof p) {
+                        case 'number':
+                        case 'boolean':
+                            return p
+                        case 'string':
+                            return `"${ __DYE_GREEN_BRIGHT__ }...${ __DYE_BLUE__ }"`
+                        case 'object':
+                            if (getConstructor(p)) return getConstructor(p).name
+                            return '{}'
+                        default: return '*'
+                    }
+                }).join(', ') }]`)
+            }
         }
         hierarchy.pop()
         syncContextFn && syncContextFn(classMeta)
