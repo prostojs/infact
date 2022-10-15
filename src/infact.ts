@@ -28,15 +28,23 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
     }
 
     public async getForInstance<IT = unknown>(instance: TObject, classConstructor: TClassConstructor<IT>, hierarchy?: string[], syncContextFn?: TSyncContextFn<T>): Promise<IT> {
-        return this.get(classConstructor, this.provideRegByInstance.get(instance) || {}, hierarchy, syncContextFn)
+        return this.get(classConstructor, this.getProvideRegByInstnce(instance) || {}, hierarchy, syncContextFn)
     }
 
     public async get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TSyncContextFn<T>): Promise<IT> {
         const { instance, mergedProvide } = await this._get(classConstructor, provide, hierarchy, syncContextFn)
         if (this.options.storeProvideRegByInstance) {
-            this.provideRegByInstance.set(instance as TObject, mergedProvide)
+            this.setProvideRegByInstance(instance as TObject, mergedProvide)
         }
         return instance
+    }
+
+    public setProvideRegByInstance(instance: TObject, provide: TProvideRegistry) {
+        this.provideRegByInstance.set(instance, provide)
+    }
+
+    public getProvideRegByInstnce(instance: TObject): TProvideRegistry {
+        return this.provideRegByInstance.get(instance) || {}
     }
 
     private async _get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TSyncContextFn<T>): Promise<{ instance: IT, mergedProvide: TProvideRegistry}> {
