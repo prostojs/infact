@@ -1,3 +1,12 @@
+## [0.0.12](https://github.com/prostojs/infact/compare/v0.0.11...v0.0.12) (2022-10-15)
+
+
+### Features
+
+* add silent mode ([b23c8e9](https://github.com/prostojs/infact/commit/b23c8e9973f628235b25f02765c84a0054124730))
+
+
+
 ## [0.0.11](https://github.com/prostojs/infact/compare/v0.0.10...v0.0.11) (2022-10-15)
 
 
