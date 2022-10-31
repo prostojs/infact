@@ -64,7 +64,13 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
                 + `An error occored on "describeClass" function.\n${ (e as Error).message }\n`
                 + 'Hierarchy:\n' + hierarchy.join(' -> '))
         }
+        const instanceKey = Symbol.for(classConstructor as unknown as string)
         if (!classMeta || !classMeta.injectable) {
+            if (provide && provide[instanceKey]) {
+                // allow to inject provided instances even if no @Injectable decorator called
+                syncContextFn && syncContextFn(classMeta)
+                return { instance: await (getProvidedValue(provide[instanceKey]) as Promise<IT>), mergedProvide: provide }
+            }
             throw panic(`Could not instantiate Injectable "${ classConstructor.name }". `
                 + 'Please check if the class is injectable or if you properly typed arguments.\n'
                 + 'Hierarchy:\n' + hierarchy.join(' -> '))
@@ -80,7 +86,6 @@ export class Infact<T extends TInfactClassMeta = TInfactClassMeta> {
             + 'Hierarchy:\n' + hierarchy.join(' -> '))
         }
         const scope = classMeta.scopeId ? this.scopes[classMeta.scopeId] : {} as TRegistry
-        const instanceKey = Symbol.for(classConstructor as unknown as string)
         const mergedProvide = {...(provide || {}), ...(classMeta.provide || {})}
         if (mergedProvide[instanceKey]) {
             syncContextFn && syncContextFn(classMeta)
