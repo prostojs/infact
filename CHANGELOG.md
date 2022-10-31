@@ -1,3 +1,12 @@
+## [0.0.13](https://github.com/prostojs/infact/compare/v0.0.12...v0.0.13) (2022-10-31)
+
+
+### Features
+
+* allow to inject provided with no injectalbe ([3b4ccac](https://github.com/prostojs/infact/commit/3b4ccac003601207812221f755169c3126dfb769))
+
+
+
 ## [0.0.12](https://github.com/prostojs/infact/compare/v0.0.11...v0.0.12) (2022-10-15)
 
 
