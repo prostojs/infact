@@ -1,3 +1,12 @@
+## [0.1.1](https://github.com/prostojs/infact/compare/v0.1.0...v0.1.1) (2023-01-17)
+
+
+### Features
+
+* **resolveProp:** add instance ([a3c5287](https://github.com/prostojs/infact/commit/a3c5287bff9435946814eb718090bd4ee27b74c0))
+
+
+
 # [0.1.0](https://github.com/prostojs/infact/compare/v0.0.13...v0.1.0) (2023-01-17)
 
 
