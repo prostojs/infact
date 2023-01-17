@@ -91,7 +91,7 @@ const options: TInfactOptions<TMeta, TMeta, Empty> = {
     describeProp(c, key) {
         return meta[symbol(c)][key as keyof Record<string, unknown>] as TMeta
     },
-    resolveProp(key, initialValue, propMeta, classMeta) {
+    resolveProp(instance, key, initialValue, propMeta, classMeta) {
         return propMeta?.resolve && propMeta?.resolve(initialValue)
     },
     storeProvideRegByInstance: true,
