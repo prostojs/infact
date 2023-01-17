@@ -1,3 +1,12 @@
+## [0.1.3](https://github.com/prostojs/infact/compare/v0.1.2...v0.1.3) (2023-01-17)
+
+
+### Bug Fixes
+
+* type ([6b7ee02](https://github.com/prostojs/infact/commit/6b7ee02a4da671b3a73a5e8040a1f092e9dfa86e))
+
+
+
 ## [0.1.2](https://github.com/prostojs/infact/compare/v0.1.1...v0.1.2) (2023-01-17)
 
 
