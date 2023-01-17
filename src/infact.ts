@@ -8,7 +8,14 @@ const globalRegistry: Record<string | symbol, unknown> = {}
 type TRegistry = Record<string | symbol, unknown>
 type TSyncContextFn<T extends TObject = TEmpty> = (classMeta?: T & TInfactClassMeta) => void | unknown
 
-export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty> {
+export interface TInfactGetOptions<T extends TObject = TAny> {
+    customData?: T
+    provide?: TProvideRegistry
+    hierarchy?: string[]
+    syncContextFn?: TSyncContextFn<TAny>
+}
+
+export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty, Custom extends TObject = TAny> {
     protected registry: TRegistry = {}
     
     protected provideRegByInstance: WeakMap<TObject, TProvideRegistry> = new WeakMap()
@@ -33,12 +40,12 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
         delete this.scopes[scopeId]
     }
 
-    public async getForInstance<IT = unknown>(instance: TObject, classConstructor: TClassConstructor<IT>, hierarchy?: string[], syncContextFn?: TSyncContextFn<Class>): Promise<IT> {
-        return this.get(classConstructor, this.getProvideRegByInstnce(instance) || {}, hierarchy, syncContextFn)
+    public async getForInstance<IT extends TObject>(instance: TObject, classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>): Promise<IT> {
+        return this.get(classConstructor, { ...opts, provide: this.getProvideRegByInstnce(instance) || {}})
     }
 
-    public async get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TSyncContextFn<Class>): Promise<IT> {
-        const { instance, mergedProvide } = await this._get(classConstructor, provide, hierarchy, syncContextFn)
+    public async get<IT extends TObject>(classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>): Promise<IT> {
+        const { instance, mergedProvide } = await this._get(classConstructor, opts)
         if (this.options.storeProvideRegByInstance) {
             this.setProvideRegByInstance(instance as TObject, mergedProvide)
         }
@@ -53,8 +60,10 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
         return this.provideRegByInstance.get(instance) || {}
     }
 
-    private async _get<IT = unknown>(classConstructor: TClassConstructor<IT>, provide?: TProvideRegistry, hierarchy?: string[], syncContextFn?: TSyncContextFn<Class>): Promise<{ instance: IT, mergedProvide: TProvideRegistry}> {
-        hierarchy = (hierarchy || [])
+    private async _get<IT extends TObject>(classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>): Promise<{ instance: IT, mergedProvide: TProvideRegistry}> {
+        const hierarchy = opts?.hierarchy || []
+        const provide = opts?.provide
+        const syncContextFn = opts?.syncContextFn
         hierarchy.push(classConstructor.name)
         let classMeta: (Class & TInfactClassMeta<Param>) | undefined
         try {
@@ -112,7 +121,12 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                             + '\nHierarchy:\n' + hierarchy.join(' -> '))
                     }                        
                 } else if (this.options.resolveParam) {
-                    resolvedParams[i] = this.options.resolveParam(param, classMeta, i)
+                    resolvedParams[i] = this.options.resolveParam({
+                        classMeta,
+                        index: i,
+                        paramMeta: param,
+                        customData: opts?.customData,
+                    })
                 }
                 if (typeof resolvedParams[i] === 'undefined') {
                     if (param.type === undefined && !param.circular) {
@@ -126,7 +140,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                                 + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. The param was not resolved to a value.`
                                 + '\nHierarchy:\n' + hierarchy.join(' -> '))
                         }
-                        resolvedParams[i] = this.get(param.type as TClassConstructor, mergedProvide, hierarchy, syncContextFn)
+                        resolvedParams[i] = this.get(param.type as TClassConstructor<IT>, { provide: mergedProvide, hierarchy, syncContextFn, customData: opts?.customData })
                     }
                 }
             }
@@ -165,7 +179,14 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                             + 'Hierarchy:\n' + hierarchy.join(' -> '))
                     }
                     if (propMeta) {
-                        resolvedProps[prop] = this.options.resolveProp(instance as TObject, prop, initialValue, propMeta, classMeta)
+                        resolvedProps[prop] = this.options.resolveProp({
+                            classMeta,
+                            initialValue,
+                            key: prop,
+                            instance,
+                            propMeta,
+                            customData: opts?.customData,
+                        })
                     }
                 }
                 for (const [prop, value] of Object.entries(resolvedProps)) {
@@ -212,7 +233,7 @@ function getProvidedValue(meta: TProvideMeta) {
     return meta.value
 }
 
-export function createProvideRegistry(...args: [TClassConstructor | string, TProvideFn][]): TProvideRegistry {
+export function createProvideRegistry(...args: [TClassConstructor<TAny> | string, TProvideFn][]): TProvideRegistry {
     const provide: TProvideRegistry = {}
     for (const a of args) {
         const [type, fn] = a
@@ -227,11 +248,23 @@ export function createProvideRegistry(...args: [TClassConstructor | string, TPro
 
 interface TEmpty {}
 
-export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty> {
-    describeClass: (classConstructor: TClassConstructor) => TInfactClassMeta<Param> & Class
-    describeProp?: (classConstructor: TClassConstructor, key: string | symbol) => Prop
-    resolveParam?: (paramMeta: (TInfactClassMeta<Param>)['constructorParams'][0], classMeta: TInfactClassMeta<Param> & Class, index: number) => unknown | Promise<unknown>
-    resolveProp?: (instance: TObject, key: string | symbol, initialValue: unknown, propMeta: Prop, classMeta: TInfactClassMeta<Param> & Class) => unknown | Promise<unknown>
+export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty, Custom extends TObject = TAny> {
+    describeClass: (classConstructor: TClassConstructor<TAny>) => TInfactClassMeta<Param> & Class
+    describeProp?: (classConstructor: TClassConstructor<TAny>, key: string | symbol) => Prop
+    resolveParam?: (opts: {
+        paramMeta: (TInfactClassMeta<Param>)['constructorParams'][0],
+        classMeta: TInfactClassMeta<Param> & Class,
+        index: number
+        customData?: Custom
+    }) => unknown | Promise<unknown>
+    resolveProp?: (opts: {
+        instance: TObject,
+        key: string | symbol,
+        initialValue: unknown,
+        propMeta: Prop,
+        classMeta: TInfactClassMeta<Param> & Class
+        customData?: Custom
+    }) => unknown | Promise<unknown>
     storeProvideRegByInstance?: boolean
 }
 
@@ -246,7 +279,7 @@ export interface TInfactClassMeta<Param extends TObject = TEmpty> {
 
 export interface TInfactConstructorParamMeta {
     label?: string
-    circular?: () => TClassConstructor
+    circular?: () => TClassConstructor<TAny>
     type?: TFunction
     inject?: string | symbol
 }

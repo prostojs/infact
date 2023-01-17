@@ -1,5 +1,4 @@
 import { Infact, TInfactClassMeta, createProvideRegistry, TInfactOptions } from '..'
-import { TClassConstructor } from '../types'
 import { CircularTestClass1 } from './circular1.artifacts'
 import { CircularTestClass2 } from './circular2.artifacts'
 import { ChildClassTestClass1, ChildClassTestClass2, ParentTestClass, ProviderTestClass1, ProviderTestClass2, WithProps } from './infact.artifacts'
@@ -53,7 +52,7 @@ const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | sym
     [symbol(CircularTestClass1)]: {
         injectable: true,
         constructorParams: [
-            { type: undefined, circular: () => CircularTestClass2 as TClassConstructor },
+            { type: undefined, circular: () => CircularTestClass2 },
         ],
     },
     [symbol(CircularTestClass2)]: {
@@ -68,10 +67,10 @@ const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | sym
         constructorParams: [],
         properties: ['prop1', 'prop2'],
         prop2: {
-            resolve: (v: number) => v + 1
+            resolve: (v: number) => v + 1,
         },
         prop1: {
-            resolve: () => 'resolved'
+            resolve: () => 'resolved',
         },
     },
 }
@@ -85,13 +84,13 @@ const options: TInfactOptions<TMeta, TMeta, Empty> = {
     describeClass: c => {
         return meta[symbol(c)]
     },
-    resolveParam: (paramMeta) => {
+    resolveParam: ({ paramMeta }) => {
         return paramMeta.type === String ? 'resolved string' : undefined
     },
     describeProp(c, key) {
         return meta[symbol(c)][key as keyof Record<string, unknown>] as TMeta
     },
-    resolveProp(instance, key, initialValue, propMeta, classMeta) {
+    resolveProp({ initialValue, propMeta }) {
         return propMeta?.resolve && propMeta?.resolve(initialValue)
     },
     storeProvideRegByInstance: true,

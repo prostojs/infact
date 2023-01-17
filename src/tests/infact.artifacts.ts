@@ -37,7 +37,12 @@ export class ParentTestClass {
 
 export class WithProps {
     prop1?: string
+
     prop2: number = 5
-    method() {}
+
+    method() {
+        //
+    }
+
     propM = () => 'value'
 }
