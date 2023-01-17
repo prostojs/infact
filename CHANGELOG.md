@@ -1,3 +1,12 @@
+## [0.1.2](https://github.com/prostojs/infact/compare/v0.1.1...v0.1.2) (2023-01-17)
+
+
+### Features
+
+* add customData ([70adcc5](https://github.com/prostojs/infact/commit/70adcc5924cabeae6f815c7353c61d2bf8b4bf73))
+
+
+
 ## [0.1.1](https://github.com/prostojs/infact/compare/v0.1.0...v0.1.1) (2023-01-17)
 
 
