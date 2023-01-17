@@ -1,3 +1,12 @@
+# [0.1.0](https://github.com/prostojs/infact/compare/v0.0.13...v0.1.0) (2023-01-17)
+
+
+### Features
+
+* **prop:** add prop meta and prop resolvers ([77345d5](https://github.com/prostojs/infact/commit/77345d5f728b096cd419980be80cab8016d77559))
+
+
+
 ## [0.0.13](https://github.com/prostojs/infact/compare/v0.0.12...v0.0.13) (2022-10-31)
 
 
