@@ -6,9 +6,9 @@ import { panic } from './utils/panic'
 const globalRegistry: Record<string | symbol, unknown> = {}
 
 type TRegistry = Record<string | symbol, unknown>
-type TSyncContextFn<T extends object = TEmpty> = (classMeta?: T & TInfactClassMeta) => void | unknown
+type TSyncContextFn<T extends TObject = TEmpty> = (classMeta?: T & TInfactClassMeta) => void | unknown
 
-export class Infact<Class extends object = TEmpty, Prop extends object = TEmpty, Param extends object = TEmpty> {
+export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty> {
     protected registry: TRegistry = {}
     
     protected provideRegByInstance: WeakMap<TObject, TProvideRegistry> = new WeakMap()
@@ -153,7 +153,7 @@ export class Infact<Class extends object = TEmpty, Prop extends object = TEmpty,
 
             // Resolving Props
             if (this.options.describeProp && this.options.resolveProp && classMeta.properties && classMeta.properties.length) {
-                let resolvedProps: Record<string | symbol, unknown> = {}
+                const resolvedProps: Record<string | symbol, Promise<unknown> | unknown> = {}
                 for (const prop of classMeta.properties) {
                     const initialValue = (instance as Record<string | symbol, unknown>)[prop]
                     let propMeta: Prop | undefined
@@ -170,16 +170,16 @@ export class Infact<Class extends object = TEmpty, Prop extends object = TEmpty,
                 }
                 for (const [prop, value] of Object.entries(resolvedProps)) {
                     try {
-                        syncContextFn && syncContextFn(classMeta);
-                        resolvedProps[prop] = value ? await value : value
+                        syncContextFn && syncContextFn(classMeta)
+                        resolvedProps[prop] = value ? await (value as Promise<unknown>) : value
                     } catch (e) {
                         logError(`Could not inject prop "${ prop }" to "${ classConstructor.name }". `
-                        + `An exception occured.`
+                        + 'An exception occured.'
                         + '\nHierarchy:\n' + hierarchy.join(' -> '))                    
                         throw e
                     }
                 }       
-                Object.assign(instance as object, resolvedProps)         
+                Object.assign(instance as TObject, resolvedProps)         
             }
 
             if (!this._silent) {
@@ -227,15 +227,15 @@ export function createProvideRegistry(...args: [TClassConstructor | string, TPro
 
 interface TEmpty {}
 
-export interface TInfactOptions<Class extends object = TEmpty, Prop extends object = TEmpty, Param extends object = TEmpty> {
+export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty> {
     describeClass: (classConstructor: TClassConstructor) => TInfactClassMeta<Param> & Class
     describeProp?: (classConstructor: TClassConstructor, key: string | symbol) => Prop
-    resolveParam?: (paramMeta: (TInfactClassMeta<Param>)['constructorParams'][0], classMeta: TInfactClassMeta<Param> & Class, index: number) => unknown
-    resolveProp?: (key: string | symbol, initialValue: unknown, propMeta: Prop, classMeta: TInfactClassMeta<Param> & Class) => unknown
+    resolveParam?: (paramMeta: (TInfactClassMeta<Param>)['constructorParams'][0], classMeta: TInfactClassMeta<Param> & Class, index: number) => unknown | Promise<unknown>
+    resolveProp?: (key: string | symbol, initialValue: unknown, propMeta: Prop, classMeta: TInfactClassMeta<Param> & Class) => unknown | Promise<unknown>
     storeProvideRegByInstance?: boolean
 }
 
-export interface TInfactClassMeta<Param extends object = TEmpty> {
+export interface TInfactClassMeta<Param extends TObject = TEmpty> {
     injectable: boolean
     global?: boolean
     provide?: TProvideRegistry
