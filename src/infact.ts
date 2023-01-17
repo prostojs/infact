@@ -22,7 +22,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
 
     protected scopes: Record<string | symbol, TRegistry> = {}
 
-    constructor(protected options: TInfactOptions<Class, Prop, Param>) {}
+    constructor(protected options: TInfactOptions<Class, Prop, Param, Custom>) {}
 
     protected _silent = false
 
