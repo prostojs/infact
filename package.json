@@ -4,8 +4,6 @@
   "description": "Instance Factory and Instance Registry for Metadata based Dependency Injection scenarios",
   "main": "index.js",
   "module": "dist/infact.esm-bundler.js",
-  "unpkg": "dist/infact.global.prod.js",
-  "jsdelivr": "dist/infact.global.prod.js",
   "types": "dist/infact.d.ts",
   "files": [
     "index.js",
@@ -34,9 +32,7 @@
     "name": "ProstoInfact",
     "formats": [
       "esm-bundler",
-      "esm-browser",
-      "cjs",
-      "global"
+      "cjs"
     ]
   },
   "dependencies": {},

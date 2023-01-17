@@ -34,6 +34,10 @@ const infact = new Infact({
                 [SomeClass, () => new SomeClass()],
             ]),
 
+            // list of properties (optional)
+            // used for resolveProp
+            properties: ['prop1', 'prop2']
+
             // you must provide constructor params descriptions
             // you may want to take types from design:paramtypes metadata
             constructorParams: [
@@ -58,6 +62,14 @@ const infact = new Infact({
         }
     },
 
+    // describeProp (optionally) used tp
+    // read prop metadata
+    describeProp: (classConstructor, key) => {
+        return {
+            // return property metadata
+        }
+    }
+
     // resolveParam is optional function that is used for constructor params.
     // you might want to use this function to inject some constants or whatever
     // additional logic based on some additional resolvers...
@@ -65,6 +77,15 @@ const infact = new Infact({
         // must return some value | undefined
         // let's say we want to inject every string param with its index value
         return paramMeta.type === String ? (index + '') : undefined
+    },,
+
+    // resolveProp is optional function that is used for instance props
+    // you might want to use this function to inject some constants or whatever
+    // additional logic based on some additional resolvers...
+    resolveProp: (key, initialValue, propMeta, classMeta) => {
+        // must return some value | undefined
+        // let's say we want to inject every string param with its key
+        return propMeta.type === String ? key : undefined
     },
 
     // storeProvideRegByInstance is optional flag

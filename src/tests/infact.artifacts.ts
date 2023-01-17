@@ -34,3 +34,10 @@ export class ParentTestClass {
         public provider2: ProviderTestClass2,
     ) {}
 }
+
+export class WithProps {
+    prop1?: string
+    prop2: number = 5
+    method() {}
+    propM = () => 'value'
+}

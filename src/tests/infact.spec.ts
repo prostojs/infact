@@ -2,13 +2,15 @@ import { Infact, TInfactClassMeta, createProvideRegistry, TInfactOptions } from 
 import { TClassConstructor } from '../types'
 import { CircularTestClass1 } from './circular1.artifacts'
 import { CircularTestClass2 } from './circular2.artifacts'
-import { ChildClassTestClass1, ChildClassTestClass2, ParentTestClass, ProviderTestClass1, ProviderTestClass2 } from './infact.artifacts'
+import { ChildClassTestClass1, ChildClassTestClass2, ParentTestClass, ProviderTestClass1, ProviderTestClass2, WithProps } from './infact.artifacts'
 
 function symbol(v: unknown) {
     return Symbol.for(v as string)
 }
 
-const meta: Record<symbol, TInfactClassMeta> = {
+interface Empty {}
+
+const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | symbol, unknown>> = {
     [symbol(ParentTestClass)]: {
         injectable: true,
         constructorParams: [
@@ -61,20 +63,42 @@ const meta: Record<symbol, TInfactClassMeta> = {
             { type: String },
         ],
     },
+    [symbol(WithProps)]: {
+        injectable: true,
+        constructorParams: [],
+        properties: ['prop1', 'prop2'],
+        prop2: {
+            resolve: (v: number) => v + 1
+        },
+        prop1: {
+            resolve: () => 'resolved'
+        },
+    },
 }
 
-const options: TInfactOptions = {
+interface TMeta {
+    resolve?: (v: unknown) => unknown,
+    propList?: (string)[]
+}
+
+const options: TInfactOptions<TMeta, TMeta, Empty> = {
     describeClass: c => {
         return meta[symbol(c)]
     },
     resolveParam: (paramMeta) => {
         return paramMeta.type === String ? 'resolved string' : undefined
     },
+    describeProp(c, key) {
+        return meta[symbol(c)][key as keyof Record<string, unknown>] as TMeta
+    },
+    resolveProp(key, initialValue, propMeta, classMeta) {
+        return propMeta?.resolve && propMeta?.resolve(initialValue)
+    },
     storeProvideRegByInstance: true,
 }
 
-const infact = new Infact(options)
-const infact2 = new Infact(options)
+const infact = new Infact<TMeta>(options)
+const infact2 = new Infact<TMeta>(options)
 
 describe('infact', () => {
     let parent: ParentTestClass
@@ -138,5 +162,11 @@ describe('infact', () => {
     it('must get classInstance for instance', async () => {
         const c2 = await infact.getForInstance(parent.child1, ProviderTestClass2)
         expect(c2.config).toBe('custom by type')
+    })
+
+    it('must process instance props', async () => {
+        const c = await infact.get(WithProps)
+        expect(c.prop2).toBe(6)
+        expect(c.prop1).toBe('resolved')
     })
 })
