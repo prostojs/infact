@@ -165,7 +165,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                             + 'Hierarchy:\n' + hierarchy.join(' -> '))
                     }
                     if (propMeta) {
-                        resolvedProps[prop] = this.options.resolveProp(prop, initialValue, propMeta, classMeta)
+                        resolvedProps[prop] = this.options.resolveProp(instance as TObject, prop, initialValue, propMeta, classMeta)
                     }
                 }
                 for (const [prop, value] of Object.entries(resolvedProps)) {
@@ -231,7 +231,7 @@ export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TOb
     describeClass: (classConstructor: TClassConstructor) => TInfactClassMeta<Param> & Class
     describeProp?: (classConstructor: TClassConstructor, key: string | symbol) => Prop
     resolveParam?: (paramMeta: (TInfactClassMeta<Param>)['constructorParams'][0], classMeta: TInfactClassMeta<Param> & Class, index: number) => unknown | Promise<unknown>
-    resolveProp?: (key: string | symbol, initialValue: unknown, propMeta: Prop, classMeta: TInfactClassMeta<Param> & Class) => unknown | Promise<unknown>
+    resolveProp?: (instance: TObject, key: string | symbol, initialValue: unknown, propMeta: Prop, classMeta: TInfactClassMeta<Param> & Class) => unknown | Promise<unknown>
     storeProvideRegByInstance?: boolean
 }
 
