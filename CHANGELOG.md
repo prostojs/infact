@@ -1,3 +1,12 @@
+## [0.1.4](https://github.com/prostojs/infact/compare/v0.1.3...v0.1.4) (2023-01-18)
+
+
+### Bug Fixes
+
+* silent mode to suppress error messages ([2c866f4](https://github.com/prostojs/infact/commit/2c866f48453f3cfb5ccaad8db179fcb396e1d587))
+
+
+
 ## [0.1.3](https://github.com/prostojs/infact/compare/v0.1.2...v0.1.3) (2023-01-17)
 
 
