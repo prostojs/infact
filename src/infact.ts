@@ -128,6 +128,22 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                         customData: opts?.customData,
                     })
                 }
+            }
+
+            for (let i = 0; i < resolvedParams.length; i++) {
+                try {
+                    syncContextFn && syncContextFn(classMeta)
+                    resolvedParams[i] = resolvedParams[i] ? await resolvedParams[i] : resolvedParams[i]
+                } catch (e) {
+                    const param = params[i]
+                    throw this.panic(e as Error, `Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
+                    + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`,
+                    hierarchy)
+                }
+            }
+
+            for (let i = 0; i < params.length; i++) {
+                const param = params[i]
                 if (typeof resolvedParams[i] === 'undefined') {
                     if (param.type === undefined && !param.circular) {
                         if (this._silent === false) {
@@ -144,7 +160,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                         }
                         resolvedParams[i] = this.get(param.type as TClassConstructor<IT>, { provide: mergedProvide, hierarchy, syncContextFn, customData: opts?.customData })
                     }
-                }
+                }                
             }
 
             for (let i = 0; i < resolvedParams.length; i++) {
