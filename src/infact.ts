@@ -1,6 +1,6 @@
 import { TAny, TClassConstructor, TFunction, TObject } from './types'
 import { getConstructor } from './utils/helpers'
-import { log, warn } from './utils/log'
+import { log, logError, warn } from './utils/log'
 import { panic } from './utils/panic'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
@@ -69,9 +69,9 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
         try {
             classMeta = this.options.describeClass(classConstructor)
         } catch (e) {
-            throw this.panic(`Could not instantiate "${ classConstructor.name }". `
-                + `An error occored on "describeClass" function.\n${ (e as Error).message }\n`
-                + 'Hierarchy:\n' + hierarchy.join(' -> '))
+            throw this.panicOwnError(`Could not instantiate "${ classConstructor.name }". `
+                + `An error occored on "describeClass" function.\n${ (e as Error).message }`,
+            hierarchy)
         }
         const instanceKey = Symbol.for(classConstructor as unknown as string)
         if (!classMeta || !classMeta.injectable) {
@@ -80,19 +80,19 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                 syncContextFn && syncContextFn(classMeta)
                 return { instance: await (getProvidedValue(provide[instanceKey]) as Promise<IT>), mergedProvide: provide }
             }
-            throw this.panic(`Could not instantiate Injectable "${ classConstructor.name }". `
-                + 'Please check if the class is injectable or if you properly typed arguments.\n'
-                + 'Hierarchy:\n' + hierarchy.join(' -> '))
+            throw this.panicOwnError(`Could not instantiate Injectable "${ classConstructor.name }". `
+                + 'Please check if the class is injectable or if you properly typed arguments.',
+            hierarchy)
         }
         if (classMeta.scopeId && classMeta.global) {
-            throw this.panic(`Could not instantiate scoped Injectable "${ classConstructor.name }" for scope "${ classMeta.scopeId as string }". `
-            + 'The scoped Injectable is not supported for Global scope.\n'
-            + 'Hierarchy:\n' + hierarchy.join(' -> '))
+            throw this.panicOwnError(`Could not instantiate scoped Injectable "${ classConstructor.name }" for scope "${ classMeta.scopeId as string }". `
+            + 'The scoped Injectable is not supported for Global scope.',
+            hierarchy)
         }
         if (classMeta.scopeId && !this.scopes[classMeta.scopeId]) {
-            throw this.panic(`Could not instantiate scoped Injectable "${ classConstructor.name }" for scope "${ classMeta.scopeId as string }". `
-            + 'The requested scope isn\'t registered.\n'
-            + 'Hierarchy:\n' + hierarchy.join(' -> '))
+            throw this.panicOwnError(`Could not instantiate scoped Injectable "${ classConstructor.name }" for scope "${ classMeta.scopeId as string }". `
+            + 'The requested scope isn\'t registered.',
+            hierarchy)
         }
         const scope = classMeta.scopeId ? this.scopes[classMeta.scopeId] : {} as TRegistry
         const mergedProvide = {...(provide || {}), ...(classMeta.provide || {})}
@@ -117,8 +117,8 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                         resolvedParams[i] = getProvidedValue(mergedProvide[param.inject])
                     } else {
                         /* istanbul ignore next line */
-                        throw this.panic(`Could not inject ${JSON.stringify(param.inject)} to "${ classConstructor.name }" to argument ${ param.label ? `labeled as "${ param.label }"` : `with index ${ i }` }`
-                            + '\nHierarchy:\n' + hierarchy.join(' -> '))
+                        throw this.panicOwnError(`Could not inject ${JSON.stringify(param.inject)} to "${ classConstructor.name }" to argument ${ param.label ? `labeled as "${ param.label }"` : `with index ${ i }` }`,
+                            hierarchy)
                     }                        
                 } else if (this.options.resolveParam) {
                     resolvedParams[i] = this.options.resolveParam({
@@ -138,9 +138,9 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                     }
                     if (typeof param.type === 'function') {
                         if ([String, Number, Date, Array].includes(param.type as TAny)) {
-                            throw this.panic(`Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
-                                + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. The param was not resolved to a value.`
-                                + '\nHierarchy:\n' + hierarchy.join(' -> '))
+                            throw this.panicOwnError(`Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
+                            + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. The param was not resolved to a value.`,
+                            hierarchy)
                         }
                         resolvedParams[i] = this.get(param.type as TClassConstructor<IT>, { provide: mergedProvide, hierarchy, syncContextFn, customData: opts?.customData })
                     }
@@ -153,9 +153,9 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                     resolvedParams[i] = resolvedParams[i] ? await resolvedParams[i] : resolvedParams[i]
                 } catch (e) {
                     const param = params[i]
-                    throw this.panic(`Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
-                    + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`
-                    + '\nHierarchy:\n' + hierarchy.join(' -> '))
+                    throw this.panic(e as Error, `Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
+                    + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`,
+                    hierarchy)
                 }
             }
 
@@ -175,19 +175,25 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                     try {
                         propMeta = this.options.describeProp(classConstructor, prop)
                     } catch (e) {
-                        throw this.panic(`Could not process prop "${ prop as string }" of "${ classConstructor.name }". `
-                            + `An error occored on "describeProp" function.\n${ (e as Error).message }\n`
-                            + 'Hierarchy:\n' + hierarchy.join(' -> '))
+                        throw this.panic(e as Error, `Could not process prop "${ prop as string }" of "${ classConstructor.name }". `
+                            + `An error occored on "describeProp" function.\n${ (e as Error).message }`,
+                        hierarchy)
                     }
                     if (propMeta) {
-                        resolvedProps[prop] = this.options.resolveProp({
-                            classMeta,
-                            initialValue,
-                            key: prop,
-                            instance,
-                            propMeta,
-                            customData: opts?.customData,
-                        })
+                        try {
+                            resolvedProps[prop] = this.options.resolveProp({
+                                classMeta,
+                                initialValue,
+                                key: prop,
+                                instance,
+                                propMeta,
+                                customData: opts?.customData,
+                            })
+                        } catch (e) {
+                            throw this.panic(e as Error, `Could not inject prop "${ prop as string }" to "${ classConstructor.name }". `
+                            + 'An exception occured: ' + (e as Error).message,
+                            hierarchy)
+                        }
                     }
                 }
                 for (const [prop, value] of Object.entries(resolvedProps)) {
@@ -195,9 +201,9 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                         syncContextFn && syncContextFn(classMeta)
                         resolvedProps[prop] = value ? await (value as Promise<unknown>) : value
                     } catch (e) {
-                        throw this.panic(`Could not inject prop "${ prop }" to "${ classConstructor.name }". `
-                        + 'An exception occured.'
-                        + '\nHierarchy:\n' + hierarchy.join(' -> '))
+                        throw this.panic(e as Error, `Could not inject prop "${ prop }" to "${ classConstructor.name }". `
+                        + 'An exception occured: ' + (e as Error).message,
+                        hierarchy)
                     }
                 }       
                 Object.assign(instance as TObject, resolvedProps)         
@@ -224,11 +230,20 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
         return { instance: await ((scope[instanceKey] || this.registry[instanceKey] || globalRegistry[instanceKey]) as Promise<IT>), mergedProvide }
     }
 
-    protected panic(text: string) {
+    protected panic(origError: Error, text: string, hierarchy?: string[]) {
         if (this._silent === true) {
-            return new Error()
+            // do nothing
         } else {
-            return panic(text)
+            logError(text + (hierarchy ? ('\nHierarchy:\n' + hierarchy.join(' -> ')) : ''))
+        }
+        return origError
+    }
+
+    protected panicOwnError(text: string, hierarchy?: string[]) {
+        if (this._silent === true) {
+            return new Error(text)
+        } else {
+            return panic(text + (hierarchy ? ('\nHierarchy:\n' + hierarchy.join(' -> ')) : ''))
         }
     }
 }
