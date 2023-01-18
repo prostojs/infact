@@ -1,3 +1,12 @@
+## [0.1.6](https://github.com/prostojs/infact/compare/v0.1.5...v0.1.6) (2023-01-18)
+
+
+### Bug Fixes
+
+* improve silent mode ([b0658af](https://github.com/prostojs/infact/commit/b0658affe32684a6e5d944799a1150087c29f5ce))
+
+
+
 ## [0.1.5](https://github.com/prostojs/infact/compare/v0.1.4...v0.1.5) (2023-01-18)
 
 
