@@ -1,3 +1,12 @@
+## [0.1.5](https://github.com/prostojs/infact/compare/v0.1.4...v0.1.5) (2023-01-18)
+
+
+### Features
+
+* add 'logs' silent mode ([7c5f7ed](https://github.com/prostojs/infact/commit/7c5f7ed39a9f83fe1caa389c3ef65c3338138620))
+
+
+
 ## [0.1.4](https://github.com/prostojs/infact/compare/v0.1.3...v0.1.4) (2023-01-18)
 
 
