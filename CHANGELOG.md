@@ -1,3 +1,12 @@
+## [0.1.7](https://github.com/prostojs/infact/compare/v0.1.6...v0.1.7) (2023-01-18)
+
+
+### Bug Fixes
+
+* proper handling resolveParam promise ([fd6b611](https://github.com/prostojs/infact/commit/fd6b611dc33aadec09292b9785364e68dee80857))
+
+
+
 ## [0.1.6](https://github.com/prostojs/infact/compare/v0.1.5...v0.1.6) (2023-01-18)
 
 
