@@ -2,6 +2,6 @@
 import { logError } from './log'
 
 export function panic(error: string) {
-    logError(error)
+    if (error) logError(error)
     return new Error(error)
 }

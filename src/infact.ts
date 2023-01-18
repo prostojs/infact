@@ -1,6 +1,6 @@
 import { TAny, TClassConstructor, TFunction, TObject } from './types'
 import { getConstructor } from './utils/helpers'
-import { log, logError, warn } from './utils/log'
+import { log, warn } from './utils/log'
 import { panic } from './utils/panic'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
@@ -24,9 +24,9 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
 
     constructor(protected options: TInfactOptions<Class, Prop, Param, Custom>) {}
 
-    protected _silent = false
+    protected _silent: boolean | 'logs' = false
 
-    public silent(value = true) {
+    public silent(value: boolean | 'logs' = 'logs') {
         this._silent = value
     }
 
@@ -130,7 +130,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                 }
                 if (typeof resolvedParams[i] === 'undefined') {
                     if (param.type === undefined && !param.circular) {
-                        if (!this._silent) {
+                        if (this._silent === false) {
                             warn(`${ classConstructor.name }.constructor() expects argument ${ param.label ? `labeled as "${ param.label }"` : `#${ i }`} that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`)
                         }
                     } else if (param.type === undefined && param.circular) {
@@ -195,16 +195,15 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                         syncContextFn && syncContextFn(classMeta)
                         resolvedProps[prop] = value ? await (value as Promise<unknown>) : value
                     } catch (e) {
-                        logError(`Could not inject prop "${ prop }" to "${ classConstructor.name }". `
+                        throw this.panic(`Could not inject prop "${ prop }" to "${ classConstructor.name }". `
                         + 'An exception occured.'
-                        + '\nHierarchy:\n' + hierarchy.join(' -> '))                    
-                        throw e
+                        + '\nHierarchy:\n' + hierarchy.join(' -> '))
                     }
                 }       
                 Object.assign(instance as TObject, resolvedProps)         
             }
 
-            if (!this._silent) {
+            if (this._silent === false) {
                 log(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ + __DYE_DIM__}" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
                     switch (typeof p) {
                         case 'number':
@@ -226,7 +225,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
     }
 
     protected panic(text: string) {
-        if (this._silent) {
+        if (this._silent === true) {
             return new Error()
         } else {
             return panic(text)
