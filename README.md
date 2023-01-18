@@ -73,7 +73,7 @@ const infact = new Infact({
     // resolveParam is optional function that is used for constructor params.
     // you might want to use this function to inject some constants or whatever
     // additional logic based on some additional resolvers...
-    resolveParam: (paramMeta, classMeta, index) => {
+    resolveParam: ({ paramMeta, classMeta, index, customData }) => {
         // must return some value | undefined
         // let's say we want to inject every string param with its index value
         return paramMeta.type === String ? (index + '') : undefined
@@ -82,7 +82,7 @@ const infact = new Infact({
     // resolveProp is optional function that is used for instance props
     // you might want to use this function to inject some constants or whatever
     // additional logic based on some additional resolvers...
-    resolveProp: (key, initialValue, propMeta, classMeta) => {
+    resolveProp: ({ key, initialValue, propMeta, classMeta, customData }) => {
         // must return some value | undefined
         // let's say we want to inject every string param with its key
         return propMeta.type === String ? key : undefined
