@@ -46,3 +46,15 @@ export class WithProps {
 
     propM = () => 'value'
 }
+
+export class OptionalInject {
+    constructor(
+        public data?: string,
+    ) {}
+}
+
+export class RequiredInject {
+    constructor(
+        public data: string,
+    ) {}
+}

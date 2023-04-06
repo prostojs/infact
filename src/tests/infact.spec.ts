@@ -1,7 +1,7 @@
 import { Infact, TInfactClassMeta, createProvideRegistry, TInfactOptions } from '..'
 import { CircularTestClass1 } from './circular1.artifacts'
 import { CircularTestClass2 } from './circular2.artifacts'
-import { ChildClassTestClass1, ChildClassTestClass2, ParentTestClass, ProviderTestClass1, ProviderTestClass2, WithProps } from './infact.artifacts'
+import { ChildClassTestClass1, ChildClassTestClass2, ParentTestClass, ProviderTestClass1, ProviderTestClass2, WithProps, OptionalInject, RequiredInject } from './infact.artifacts'
 
 function symbol(v: unknown) {
     return Symbol.for(v as string)
@@ -72,6 +72,18 @@ const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | sym
         prop1: {
             resolve: () => 'resolved',
         },
+    },
+    [symbol(OptionalInject)]: {
+        injectable: true,
+        constructorParams: [
+            { type: String, inject: 'optional-inject', nullable: true },
+        ],
+    },
+    [symbol(RequiredInject)]: {
+        injectable: true,
+        constructorParams: [
+            { type: String, inject: 'required-inject', nullable: false },
+        ],
     },
 }
 
@@ -167,5 +179,18 @@ describe('infact', () => {
         const c = await infact.get(WithProps)
         expect(c.prop2).toBe(6)
         expect(c.prop1).toBe('resolved')
+    })
+
+    it('must let optional inject be empty', async () => {
+        const c = await infact.get(OptionalInject)
+        expect(c.data).toBe(undefined)
+    })
+
+    it('must not let required inject be empty', async () => {
+        await expect(async () => await infact.get(RequiredInject)).rejects.toMatchInlineSnapshot(`
+[Error: Could not inject "required-inject" to "RequiredInject" to argument with index 0
+Hierarchy:
+RequiredInject]
+`)
     })
 })

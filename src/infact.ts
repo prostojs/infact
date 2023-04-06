@@ -15,6 +15,8 @@ export interface TInfactGetOptions<T extends TObject = TAny> {
     syncContextFn?: TSyncContextFn<TAny>
 }
 
+const UNDEFINED = Symbol('undefined')
+
 export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty, Custom extends TObject = TAny> {
     protected registry: TRegistry = {}
     
@@ -115,6 +117,8 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                 if (param.inject) {
                     if (mergedProvide && mergedProvide[param.inject]) {
                         resolvedParams[i] = getProvidedValue(mergedProvide[param.inject])
+                    } else if (param.nullable) {
+                        resolvedParams[i] = UNDEFINED
                     } else {
                         /* istanbul ignore next line */
                         throw this.panicOwnError(`Could not inject ${JSON.stringify(param.inject)} to "${ classConstructor.name }" to argument ${ param.label ? `labeled as "${ param.label }"` : `with index ${ i }` }`,
@@ -131,14 +135,17 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
             }
 
             for (let i = 0; i < resolvedParams.length; i++) {
-                try {
-                    syncContextFn && syncContextFn(classMeta)
-                    resolvedParams[i] = resolvedParams[i] ? await resolvedParams[i] : resolvedParams[i]
-                } catch (e) {
-                    const param = params[i]
-                    throw this.panic(e as Error, `Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
-                    + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`,
-                    hierarchy)
+                const rp: unknown = resolvedParams[i]
+                if (rp && rp !== UNDEFINED && typeof (rp as Promise<unknown>).then === 'function') {
+                    try {
+                        syncContextFn && syncContextFn(classMeta)
+                        resolvedParams[i] = await (rp as Promise<unknown>)
+                    } catch (e) {
+                        const param = params[i]
+                        throw this.panic(e as Error, `Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
+                        + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`,
+                        hierarchy)
+                    }
                 }
             }
 
@@ -160,18 +167,24 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                         }
                         resolvedParams[i] = this.get(param.type as TClassConstructor<IT>, { provide: mergedProvide, hierarchy, syncContextFn, customData: opts?.customData })
                     }
-                }                
+                }
+                if (resolvedParams[i] === UNDEFINED) {
+                    resolvedParams[i] = undefined
+                }
             }
 
             for (let i = 0; i < resolvedParams.length; i++) {
-                try {
-                    syncContextFn && syncContextFn(classMeta)
-                    resolvedParams[i] = resolvedParams[i] ? await resolvedParams[i] : resolvedParams[i]
-                } catch (e) {
-                    const param = params[i]
-                    throw this.panic(e as Error, `Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
-                    + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`,
-                    hierarchy)
+                const rp: unknown = resolvedParams[i]
+                if (rp && typeof (rp as Promise<unknown>).then === 'function') {
+                    try {
+                        syncContextFn && syncContextFn(classMeta)
+                        resolvedParams[i] = await (rp as Promise<unknown>)
+                    } catch (e) {
+                        const param = params[i]
+                        throw this.panic(e as Error, `Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
+                        + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. An exception occured.`,
+                        hierarchy)
+                    }
                 }
             }
 
@@ -321,6 +334,7 @@ export interface TInfactConstructorParamMeta {
     circular?: () => TClassConstructor<TAny>
     type?: TFunction
     inject?: string | symbol
+    nullable?: boolean
 }
 
 interface TProvideMeta {
