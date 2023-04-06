@@ -1,3 +1,12 @@
+## [0.1.8](https://github.com/prostojs/infact/compare/v0.1.7...v0.1.8) (2023-04-06)
+
+
+### Features
+
+* add nullable option for constructor param ([ce2251e](https://github.com/prostojs/infact/commit/ce2251e9f8ddc51af4c7f4cb37c4fa9f76bb5764))
+
+
+
 ## [0.1.7](https://github.com/prostojs/infact/compare/v0.1.6...v0.1.7) (2023-01-18)
 
 
