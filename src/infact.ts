@@ -15,7 +15,7 @@ export interface TInfactGetOptions<T extends TObject = TAny> {
 
 const UNDEFINED = Symbol('undefined')
 
-interface TConsoleBase { error: ((...args: any) => void), warn: ((...args: any) => void), log: ((...args: any) => void) }
+interface TConsoleBase { error: ((...args: any) => void), warn: ((...args: any) => void), log: ((...args: any) => void), info: ((...args: any) => void) }
 
 export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty, Custom extends TObject = TAny> {
     protected registry: TRegistry = {}
@@ -247,7 +247,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
             }
 
             if (this._silent === false) {
-                this.logger.log(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ + __DYE_DIM__}" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
+                this.logger.info(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ + __DYE_DIM__}" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
                     switch (typeof p) {
                         case 'number':
                         case 'boolean':
