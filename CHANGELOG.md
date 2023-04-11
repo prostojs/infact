@@ -1,3 +1,12 @@
+## [0.1.9](https://github.com/prostojs/infact/compare/v0.1.8...v0.1.9) (2023-04-11)
+
+
+### Features
+
+* switch to @prostojs/logger ([9d53d72](https://github.com/prostojs/infact/commit/9d53d72ff25771cbd4d6128db04db17a92deb21f))
+
+
+
 ## [0.1.8](https://github.com/prostojs/infact/compare/v0.1.7...v0.1.8) (2023-04-06)
 
 
