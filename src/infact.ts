@@ -1,7 +1,5 @@
-import { TConsoleBase } from '@prostojs/logger'
 import { TAny, TClassConstructor, TFunction, TObject } from './types'
 import { getConstructor } from './utils/helpers'
-import { getDefaultLogger } from './utils/logger'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
 
@@ -17,6 +15,8 @@ export interface TInfactGetOptions<T extends TObject = TAny> {
 
 const UNDEFINED = Symbol('undefined')
 
+interface TConsoleBase { error: ((...args: any) => void), warn: ((...args: any) => void), log: ((...args: any) => void) }
+
 export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty, Custom extends TObject = TAny> {
     protected registry: TRegistry = {}
     
@@ -27,7 +27,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
     protected logger: TConsoleBase
 
     constructor(protected options: TInfactOptions<Class, Prop, Param, Custom>) {
-        this.logger = options.logger || getDefaultLogger()
+        this.logger = options.logger || console
     }
 
     protected _silent: boolean | 'logs' = false
