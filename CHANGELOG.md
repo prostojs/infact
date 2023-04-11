@@ -1,3 +1,12 @@
+## [0.1.11](https://github.com/prostojs/infact/compare/v0.1.10...v0.1.11) (2023-04-11)
+
+
+### Bug Fixes
+
+* logger.log -> logger.info ([742a916](https://github.com/prostojs/infact/commit/742a91675b8cf2b24734f98afa618dae817f625c))
+
+
+
 ## [0.1.10](https://github.com/prostojs/infact/compare/v0.1.9...v0.1.10) (2023-04-11)
 
 
