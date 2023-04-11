@@ -1,7 +1,7 @@
+import { TConsoleBase } from '@prostojs/logger'
 import { TAny, TClassConstructor, TFunction, TObject } from './types'
 import { getConstructor } from './utils/helpers'
-import { log, logError, warn } from './utils/log'
-import { panic } from './utils/panic'
+import { getDefaultLogger } from './utils/logger'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
 
@@ -24,9 +24,17 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
 
     protected scopes: Record<string | symbol, TRegistry> = {}
 
-    constructor(protected options: TInfactOptions<Class, Prop, Param, Custom>) {}
+    protected logger: TConsoleBase
+
+    constructor(protected options: TInfactOptions<Class, Prop, Param, Custom>) {
+        this.logger = options.logger || getDefaultLogger()
+    }
 
     protected _silent: boolean | 'logs' = false
+
+    public setLogger(logger: TConsoleBase) {
+        this.logger = logger
+    }
 
     public silent(value: boolean | 'logs' = 'logs') {
         this._silent = value
@@ -154,7 +162,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                 if (typeof resolvedParams[i] === 'undefined') {
                     if (param.type === undefined && !param.circular) {
                         if (this._silent === false) {
-                            warn(`${ classConstructor.name }.constructor() expects argument ${ param.label ? `labeled as "${ param.label }"` : `#${ i }`} that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`)
+                            this.logger.warn(`${ classConstructor.name }.constructor() expects argument ${ param.label ? `labeled as "${ param.label }"` : `#${ i }`} that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`)
                         }
                     } else if (param.type === undefined && param.circular) {
                         param.type = (param.circular as TFunction)() as TFunction
@@ -239,7 +247,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
             }
 
             if (this._silent === false) {
-                log(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ + __DYE_DIM__}" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
+                this.logger.log(`Class "${ __DYE_BOLD__ + classConstructor.name + __DYE_BOLD_OFF__ + __DYE_DIM__}" instantiated with: ${ __DYE_BLUE__ }[${ resolvedParams.map(p => {
                     switch (typeof p) {
                         case 'number':
                         case 'boolean':
@@ -263,16 +271,18 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
         if (this._silent === true) {
             // do nothing
         } else {
-            logError(text + (hierarchy ? ('\nHierarchy:\n' + hierarchy.join(' -> ')) : ''))
+            this.logger.error(text + (hierarchy ? ('\nHierarchy:\n' + hierarchy.join(' -> ')) : ''))
         }
         return origError
     }
 
     protected panicOwnError(text: string, hierarchy?: string[]) {
+        const e = new Error(text + (hierarchy ? ('\nHierarchy:\n' + hierarchy.join(' -> ')) : ''))
         if (this._silent === true) {
-            return new Error(text)
+            return e
         } else {
-            return panic(text + (hierarchy ? ('\nHierarchy:\n' + hierarchy.join(' -> ')) : ''))
+            this.logger.error(e)
+            return e
         }
     }
 }
@@ -318,6 +328,7 @@ export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TOb
         customData?: Custom
     }) => unknown | Promise<unknown>
     storeProvideRegByInstance?: boolean
+    logger?: TConsoleBase
 }
 
 export interface TInfactClassMeta<Param extends TObject = TEmpty> {

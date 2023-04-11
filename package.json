@@ -35,7 +35,9 @@
       "cjs"
     ]
   },
-  "dependencies": {},
+  "dependencies": {
+    "@prostojs/logger": "^0.3.2"
+  },
   "gitHooks": {
     "commit-msg": "node scripts/verifyCommit.js"
   },
