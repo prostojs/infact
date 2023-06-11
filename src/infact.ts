@@ -135,6 +135,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                 } else if (this.options.resolveParam) {
                     resolvedParams[i] = this.options.resolveParam({
                         classMeta,
+                        classConstructor,
                         index: i,
                         paramMeta: param,
                         customData: opts?.customData,
@@ -220,6 +221,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                         try {
                             resolvedProps[prop] = this.options.resolveProp({
                                 classMeta,
+                                classConstructor,
                                 initialValue,
                                 key: prop,
                                 instance,
@@ -316,6 +318,7 @@ export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TOb
     resolveParam?: (opts: {
         paramMeta: (TInfactClassMeta<Param>)['constructorParams'][0],
         classMeta: TInfactClassMeta<Param> & Class,
+        classConstructor: TFunction
         index: number
         customData?: Custom
     }) => unknown | Promise<unknown>
@@ -325,6 +328,7 @@ export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TOb
         initialValue: unknown,
         propMeta: Prop,
         classMeta: TInfactClassMeta<Param> & Class
+        classConstructor: TFunction
         customData?: Custom
     }) => unknown | Promise<unknown>
     storeProvideRegByInstance?: boolean
