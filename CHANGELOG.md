@@ -1,3 +1,12 @@
+## [0.1.12](https://github.com/prostojs/infact/compare/v0.1.11...v0.1.12) (2023-06-11)
+
+
+### Features
+
+* add classConstructor to resolve func ([efbc068](https://github.com/prostojs/infact/commit/efbc068fa1ccb4125f6695bcc3e59e22870b2dc3))
+
+
+
 ## [0.1.11](https://github.com/prostojs/infact/compare/v0.1.10...v0.1.11) (2023-04-11)
 
 
