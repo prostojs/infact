@@ -50,16 +50,20 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
         delete this.scopes[scopeId]
     }
 
-    public async getForInstance<IT extends TObject>(instance: TObject, classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>): Promise<IT> {
+    public getForInstance<IT extends TObject>(instance: TObject, classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>): Promise<IT> {
         return this.get(classConstructor, { ...opts, provide: this.getProvideRegByInstnce(instance) || {}})
     }
 
-    public async get<IT extends TObject>(classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>): Promise<IT> {
-        const { instance, mergedProvide } = await this._get(classConstructor, opts)
-        if (this.options.storeProvideRegByInstance) {
-            this.setProvideRegByInstance(instance as TObject, mergedProvide)
+    public async get<IT extends TObject, O extends boolean>(classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>, optional: O = false as O): Promise<IT> {
+        const result = await this._get(classConstructor, opts, optional)
+        if (result) {
+            const { instance, mergedProvide } = result
+            if (this.options.storeProvideRegByInstance) {
+                this.setProvideRegByInstance(instance as TObject, mergedProvide)
+            }
+            return instance
         }
-        return instance
+        return undefined as unknown as IT
     }
 
     public setProvideRegByInstance(instance: TObject, provide: TProvideRegistry) {
@@ -70,7 +74,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
         return this.provideRegByInstance.get(instance) || {}
     }
 
-    private async _get<IT extends TObject>(classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>): Promise<{ instance: IT, mergedProvide: TProvideRegistry}> {
+    private async _get<IT extends TObject, O extends boolean>(classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>, optional?: boolean): Promise<O extends true ? { instance: IT, mergedProvide: TProvideRegistry } | undefined : { instance: IT, mergedProvide: TProvideRegistry }> {
         const hierarchy = opts?.hierarchy || []
         const provide = opts?.provide
         const syncContextFn = opts?.syncContextFn
@@ -90,9 +94,13 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                 syncContextFn && syncContextFn(classMeta)
                 return { instance: await (getProvidedValue(provide[instanceKey]) as Promise<IT>), mergedProvide: provide }
             }
-            throw this.panicOwnError(`Could not instantiate Injectable "${ classConstructor.name }". `
-                + 'Please check if the class is injectable or if you properly typed arguments.',
-            hierarchy)
+            if (!optional) {
+                throw this.panicOwnError(`Could not instantiate Injectable "${ classConstructor.name }". `
+                    + 'Please check if the class is injectable or if you properly typed arguments.',
+                hierarchy)
+            } else {
+                return undefined as O extends true ? { instance: IT, mergedProvide: TProvideRegistry } | undefined : { instance: IT, mergedProvide: TProvideRegistry }
+            }
         }
         if (classMeta.scopeId && classMeta.global) {
             throw this.panicOwnError(`Could not instantiate scoped Injectable "${ classConstructor.name }" for scope "${ classMeta.scopeId as string }". `
@@ -125,7 +133,7 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                 if (param.inject) {
                     if (mergedProvide && mergedProvide[param.inject]) {
                         resolvedParams[i] = getProvidedValue(mergedProvide[param.inject])
-                    } else if (param.nullable) {
+                    } else if (param.nullable || param.optional) {
                         resolvedParams[i] = UNDEFINED
                     } else {
                         /* istanbul ignore next line */
@@ -170,11 +178,13 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
                     }
                     if (typeof param.type === 'function') {
                         if ([String, Number, Date, Array].includes(param.type as TAny)) {
-                            throw this.panicOwnError(`Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
-                            + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. The param was not resolved to a value.`,
-                            hierarchy)
+                            if (!param.nullable && !param.optional) {
+                                throw this.panicOwnError(`Could not inject "${ (param.type as unknown as TFunction).name }" to "${ classConstructor.name }" `
+                                + `constructor at index ${ i }${ param.label ? ` (${ param.label })` : '' }. The param was not resolved to a value.`,
+                                hierarchy)
+                            }
                         }
-                        resolvedParams[i] = this.get(param.type as TClassConstructor<IT>, { provide: mergedProvide, hierarchy, syncContextFn, customData: opts?.customData })
+                        resolvedParams[i] = this.get(param.type as TClassConstructor<IT>, { provide: mergedProvide, hierarchy, syncContextFn, customData: opts?.customData }, param.optional || param.nullable)
                     }
                 }
                 if (resolvedParams[i] === UNDEFINED) {
@@ -350,6 +360,7 @@ export interface TInfactConstructorParamMeta {
     type?: TFunction
     inject?: string | symbol
     nullable?: boolean
+    optional?: boolean // same as nullable for compatibility
 }
 
 interface TProvideMeta {

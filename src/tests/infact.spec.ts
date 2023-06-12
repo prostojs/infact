@@ -76,7 +76,7 @@ const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | sym
     [symbol(OptionalInject)]: {
         injectable: true,
         constructorParams: [
-            { type: String, inject: 'optional-inject', nullable: true },
+            { type: Object, inject: 'optional-inject', nullable: true },
         ],
     },
     [symbol(RequiredInject)]: {
