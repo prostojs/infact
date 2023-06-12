@@ -1,3 +1,12 @@
+## [0.1.13](https://github.com/prostojs/infact/compare/v0.1.12...v0.1.13) (2023-06-12)
+
+
+### Bug Fixes
+
+* add optional alias for nullable; fiix nullable logic ([c8700f4](https://github.com/prostojs/infact/commit/c8700f46714694eba415cdf85c01aeef1d6589f4))
+
+
+
 ## [0.1.12](https://github.com/prostojs/infact/compare/v0.1.11...v0.1.12) (2023-06-11)
 
 
