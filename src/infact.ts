@@ -9,6 +9,7 @@ type TSyncContextFn<T extends TObject = TEmpty> = (classMeta?: T & TInfactClassM
 export interface TInfactGetOptions<T extends TObject = TAny> {
     customData?: T
     provide?: TProvideRegistry
+    replace?: TReplaceRegistry
     hierarchy?: string[]
     syncContextFn?: TSyncContextFn<TAny>
 }
@@ -77,17 +78,26 @@ export class Infact<Class extends TObject = TEmpty, Prop extends TObject = TEmpt
     private async _get<IT extends TObject, O extends boolean>(classConstructor: TClassConstructor<IT>, opts?: TInfactGetOptions<Custom>, optional?: boolean): Promise<O extends true ? { instance: IT, mergedProvide: TProvideRegistry } | undefined : { instance: IT, mergedProvide: TProvideRegistry }> {
         const hierarchy = opts?.hierarchy || []
         const provide = opts?.provide
+        const replace = opts?.replace
         const syncContextFn = opts?.syncContextFn
         hierarchy.push(classConstructor.name)
         let classMeta: (Class & TInfactClassMeta<Param>) | undefined
+        let instanceKey = Symbol.for(classConstructor as unknown as string)
+        if (replace && replace[Symbol.for(classConstructor as unknown as string)]) {
+            classConstructor = replace?.[instanceKey]
+            instanceKey = Symbol.for(classConstructor as unknown as string)
+        }
         try {
             classMeta = this.options.describeClass(classConstructor)
         } catch (e) {
-            throw this.panicOwnError(`Could not instantiate "${ classConstructor.name }". `
-                + `An error occored on "describeClass" function.\n${ (e as Error).message }`,
-            hierarchy)
+            throw this.panicOwnError(
+                `Could not instantiate "${classConstructor.name}". ` +
+                        `An error occored on "describeClass" function.\n${
+                            (e as Error).message
+                        }`,
+                hierarchy,
+            )
         }
-        const instanceKey = Symbol.for(classConstructor as unknown as string)
         if (!classMeta || !classMeta.injectable) {
             if (provide && provide[instanceKey]) {
                 // allow to inject provided instances even if no @Injectable decorator called
@@ -307,17 +317,33 @@ function getProvidedValue(meta: TProvideMeta) {
     return meta.value
 }
 
-export function createProvideRegistry(...args: [TClassConstructor<TAny> | string, TProvideFn][]): TProvideRegistry {
+export function createProvideRegistry(
+    ...args: [TClassConstructor<TAny> | string, TProvideFn][]
+): TProvideRegistry {
     const provide: TProvideRegistry = {}
     for (const a of args) {
         const [type, fn] = a
-        const key = typeof type === 'string' ? type : Symbol.for(type as unknown as string)
+        const key =
+            typeof type === 'string'
+                ? type
+                : Symbol.for(type as unknown as string)
         provide[key] = {
             fn,
             resolved: false,
         }
     }
     return provide
+}
+export function createReplaceRegistry(
+    ...args: [TClassConstructor<TAny>, TClassConstructor<TAny>][]
+): TReplaceRegistry {
+    const replace: TReplaceRegistry = {}
+    for (const a of args) {
+        const [type, newType] = a
+        const key = Symbol.for(type as unknown as string)
+        replace[key] = newType
+    }
+    return replace
 }
 
 interface TEmpty {}
@@ -370,4 +396,5 @@ interface TProvideMeta {
 }
 
 export type TProvideRegistry = Record<string | symbol, TProvideMeta>
+export type TReplaceRegistry = Record<symbol, TClassConstructor<TAny>>;
 export type TProvideFn = () => TAny
