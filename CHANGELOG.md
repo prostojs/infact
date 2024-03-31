@@ -1,3 +1,12 @@
+# [0.2.0](https://github.com/prostojs/infact/compare/v0.1.14...v0.2.0) (2024-03-31)
+
+
+### Features
+
+* improve replace registry ([523d252](https://github.com/prostojs/infact/commit/523d252809fe99b1cf7adcdfc4e010df46144181))
+
+
+
 ## [0.1.14](https://github.com/prostojs/infact/compare/v0.1.13...v0.1.14) (2024-03-31)
 
 
