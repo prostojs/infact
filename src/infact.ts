@@ -77,11 +77,12 @@ export class Infact<
     ): Promise<IT> {
         const result = await this._get(classConstructor, opts, optional)
         if (result) {
-            const { instance, mergedProvide } = result
+            const { instance, mergedProvide, replace } = result
             if (this.options.storeProvideRegByInstance) {
                 this.setInstanceRegistries(
                     instance as TObject,
                     mergedProvide,
+                    replace,
                 )
             }
             return instance
