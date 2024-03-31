@@ -1,3 +1,12 @@
+## [0.2.2](https://github.com/prostojs/infact/compare/v0.2.1...v0.2.2) (2024-03-31)
+
+
+### Features
+
+* store custom data in instanceRegistries ([7b54aec](https://github.com/prostojs/infact/commit/7b54aecab5dee6892cef4751fd3716ee2ea25271))
+
+
+
 ## [0.2.1](https://github.com/prostojs/infact/compare/v0.2.0...v0.2.1) (2024-03-31)
 
 
