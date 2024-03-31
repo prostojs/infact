@@ -1,3 +1,12 @@
+## [0.2.1](https://github.com/prostojs/infact/compare/v0.2.0...v0.2.1) (2024-03-31)
+
+
+### Bug Fixes
+
+* replace ([2a67bc4](https://github.com/prostojs/infact/commit/2a67bc44141b7990c4a73edfc7a6a10173a13435))
+
+
+
 # [0.2.0](https://github.com/prostojs/infact/compare/v0.1.14...v0.2.0) (2024-03-31)
 
 
