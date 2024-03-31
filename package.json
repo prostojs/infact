@@ -1,6 +1,6 @@
 {
   "name": "@prostojs/infact",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Instance Factory and Instance Registry for Metadata based Dependency Injection scenarios",
   "main": "index.js",
   "module": "dist/infact.esm-bundler.js",
