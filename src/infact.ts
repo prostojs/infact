@@ -26,8 +26,14 @@ export class Infact<
 > {
     protected registry: TRegistry = {};
 
-    protected instanceRegistries: WeakMap<TObject, {provide: TProvideRegistry, replace?: TReplaceRegistry}> =
-        new WeakMap();
+    protected instanceRegistries: WeakMap<
+        TObject,
+        {
+            provide: TProvideRegistry;
+            replace?: TReplaceRegistry;
+            customData?: Custom;
+        }
+    > = new WeakMap();
 
     protected scopes: Record<string | symbol, TRegistry> = {};
 
@@ -67,6 +73,7 @@ export class Infact<
             ...opts,
             provide: registries.provide || {},
             replace: registries.replace,
+            customData: registries.customData,
         })
     }
 
@@ -83,6 +90,7 @@ export class Infact<
                     instance as TObject,
                     mergedProvide,
                     replace,
+                    opts?.customData,
                 )
             }
             return instance
@@ -94,11 +102,16 @@ export class Infact<
         instance: TObject,
         provide: TProvideRegistry,
         replace?: TReplaceRegistry,
+        customData?: Custom
     ) {
-        this.instanceRegistries.set(instance, { provide, replace })
+        this.instanceRegistries.set(instance, { provide, replace, customData })
     }
 
-    public getInstanceRegistries(instance: TObject): { provide?: TProvideRegistry, replace?: TReplaceRegistry } {
+    public getInstanceRegistries(instance: TObject): {
+        provide?: TProvideRegistry;
+        replace?: TReplaceRegistry;
+        customData?: Custom;
+    } {
         return this.instanceRegistries.get(instance) || {}
     }
 
@@ -108,8 +121,18 @@ export class Infact<
         optional?: boolean,
     ): Promise<
         O extends true
-            ? { instance: IT; mergedProvide: TProvideRegistry; replace?: TReplaceRegistry } | undefined
-            : { instance: IT; mergedProvide: TProvideRegistry; replace?: TReplaceRegistry }
+            ?
+                  | {
+                        instance: IT;
+                        mergedProvide: TProvideRegistry;
+                        replace?: TReplaceRegistry;
+                    }
+                  | undefined
+            : {
+                  instance: IT;
+                  mergedProvide: TProvideRegistry;
+                  replace?: TReplaceRegistry;
+              }
     > {
         const hierarchy = opts?.hierarchy || []
         const provide = opts?.provide
@@ -118,10 +141,7 @@ export class Infact<
         hierarchy.push(classConstructor.name)
         let classMeta: (Class & TInfactClassMeta<Param>) | undefined
         let instanceKey = Symbol.for(classConstructor as unknown as string)
-        if (
-            replace &&
-            replace[instanceKey]
-        ) {
+        if (replace && replace[instanceKey]) {
             classConstructor = replace?.[instanceKey]
             instanceKey = Symbol.for(classConstructor as unknown as string)
         }
