@@ -349,6 +349,7 @@ export class Infact<
                             param.type as TClassConstructor<IT>,
                             {
                                 provide: mergedProvide,
+                                replace,
                                 hierarchy,
                                 syncContextFn,
                                 customData: opts?.customData,
