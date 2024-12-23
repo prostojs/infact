@@ -1,3 +1,13 @@
+## [0.2.4](https://github.com/prostojs/infact/compare/v0.2.3...v0.2.4) (2024-12-23)
+
+
+### Features
+
+* add cleanup ([9999e51](https://github.com/prostojs/infact/commit/9999e516ac6a2b970e276b3930317418254da567))
+* add cleanup ([704316c](https://github.com/prostojs/infact/commit/704316c9f620b64433441665a7c3cb67ea478f98))
+
+
+
 ## [0.2.3](https://github.com/prostojs/infact/compare/v0.2.2...v0.2.3) (2024-12-23)
 
 
