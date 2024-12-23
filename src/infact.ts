@@ -45,6 +45,17 @@ export class Infact<
 
     protected _silent: boolean | 'logs' = false;
 
+    /**
+     * Cleanup function to reset registry
+     *
+     * It is usefull in dev mode when server restarts
+     */
+    public _cleanup() {
+        this.registry = {}
+        this.instanceRegistries = new WeakMap()
+        this.scopes = {}
+    }
+
     public setLogger(logger: TConsoleBase) {
         this.logger = logger
     }
@@ -102,7 +113,7 @@ export class Infact<
         instance: TObject,
         provide: TProvideRegistry,
         replace?: TReplaceRegistry,
-        customData?: Custom
+        customData?: Custom,
     ) {
         this.instanceRegistries.set(instance, { provide, replace, customData })
     }
