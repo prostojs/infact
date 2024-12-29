@@ -187,10 +187,7 @@ describe('infact', () => {
     })
 
     it('must not let required inject be empty', async () => {
-        await expect(async () => await infact.get(RequiredInject)).rejects.toMatchInlineSnapshot(`
-[Error: Could not inject "required-inject" to "RequiredInject" to argument with index 0
-Hierarchy:
-RequiredInject]
-`)
+        await expect(async () => await infact.get(RequiredInject)).rejects.
+            toMatchInlineSnapshot('[Error: Could not inject "required-inject" argument with index 0]')
     })
 })
