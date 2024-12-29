@@ -1,5 +1,4 @@
 import { TAny, TClassConstructor, TFunction, TObject } from './types'
-import { getConstructor } from './utils/helpers'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
 
@@ -15,8 +14,6 @@ export interface TInfactGetOptions<T extends TObject = TAny> {
 }
 
 const UNDEFINED = Symbol('undefined')
-
-interface TConsoleBase { error: ((...args: any) => void), warn: ((...args: any) => void), log: ((...args: any) => void), info: ((...args: any) => void) }
 
 export class Infact<
     Class extends TObject = TEmpty,
@@ -37,13 +34,9 @@ export class Infact<
 
     protected scopes: Record<string | symbol, TRegistry> = {};
 
-    protected logger: TConsoleBase;
-
-    constructor(protected options: TInfactOptions<Class, Prop, Param, Custom>) {
-        this.logger = options.logger || console
-    }
-
-    protected _silent: boolean | 'logs' = false;
+    constructor(
+        protected options: TInfactOptions<Class, Prop, Param, Custom>,
+    ) {}
 
     /**
      * Cleanup function to reset registry
@@ -56,12 +49,16 @@ export class Infact<
         this.scopes = {}
     }
 
-    public setLogger(logger: TConsoleBase) {
-        this.logger = logger
-    }
-
-    public silent(value: boolean | 'logs' = 'logs') {
-        this._silent = value
+    public raiseEvent(
+        event: 'new-instance' | 'warn' | 'error',
+        // eslint-disable-next-line @typescript-eslint/ban-types
+        targetClass: Function,
+        message: string,
+        args?: unknown[],
+    ) {
+        if (this.options.on) {
+            this.options.on(event, targetClass, message, args)
+        }
     }
 
     public registerScope(scopeId: string | symbol) {
@@ -159,13 +156,7 @@ export class Infact<
         try {
             classMeta = this.options.describeClass(classConstructor)
         } catch (e) {
-            throw this.panicOwnError(
-                `Could not instantiate "${classConstructor.name}". ` +
-                    `An error occored on "describeClass" function.\n${
-                        (e as Error).message
-                    }`,
-                hierarchy,
-            )
+            throw this.panicOwnError(classConstructor, `An error occored on "describeClass" function: ${ (e as Error).message}`, hierarchy)
         }
         if (!classMeta || !classMeta.injectable) {
             if (provide && provide[instanceKey]) {
@@ -180,11 +171,7 @@ export class Infact<
                 }
             }
             if (!optional) {
-                throw this.panicOwnError(
-                    `Could not instantiate Injectable "${classConstructor.name}". ` +
-                        'Please check if the class is injectable or if you properly typed arguments.',
-                    hierarchy,
-                )
+                throw this.panicOwnError(classConstructor, 'Class is not Injectable and not Optional.',hierarchy)
             } else {
                 return undefined as O extends true
                     ?
@@ -203,19 +190,15 @@ export class Infact<
         }
         if (classMeta.scopeId && classMeta.global) {
             throw this.panicOwnError(
-                `Could not instantiate scoped Injectable "${
-                    classConstructor.name
-                }" for scope "${classMeta.scopeId as string}". ` +
-                    'The scoped Injectable is not supported for Global scope.',
+                classConstructor,
+                `The scoped Injectable is not supported for Global scope. (${classMeta.scopeId as string})`,
                 hierarchy,
             )
         }
         if (classMeta.scopeId && !this.scopes[classMeta.scopeId]) {
             throw this.panicOwnError(
-                `Could not instantiate scoped Injectable "${
-                    classConstructor.name
-                }" for scope "${classMeta.scopeId as string}". ` +
-                    'The requested scope isn\'t registered.',
+                classConstructor,
+                `The requested scope "${classMeta.scopeId as string}" isn't registered.`,
                 hierarchy,
             )
         }
@@ -268,9 +251,10 @@ export class Infact<
                     } else {
                         /* istanbul ignore next line */
                         throw this.panicOwnError(
+                            classConstructor,
                             `Could not inject ${JSON.stringify(
                                 param.inject,
-                            )} to "${classConstructor.name}" to argument ${
+                            )} argument ${
                                 param.label
                                     ? `labeled as "${param.label}"`
                                     : `with index ${i}`
@@ -302,13 +286,13 @@ export class Infact<
                     } catch (e) {
                         const param = params[i]
                         throw this.panic(
+                            classConstructor,
                             e as Error,
                             `Could not inject "${
                                 (param.type as unknown as TFunction).name
-                            }" to "${classConstructor.name}" ` +
-                                `constructor at index ${i}${
-                                    param.label ? ` (${param.label})` : ''
-                                }. An exception occured.`,
+                            }" argument at index ${i}${
+                                param.label ? ` (${param.label})` : ''
+                            }. An exception occured.`,
                             hierarchy,
                         )
                     }
@@ -319,17 +303,15 @@ export class Infact<
                 const param = params[i]
                 if (typeof resolvedParams[i] === 'undefined') {
                     if (param.type === undefined && !param.circular) {
-                        if (this._silent === false) {
-                            this.logger.warn(
-                                `${
-                                    classConstructor.name
-                                }.constructor() expects argument ${
-                                    param.label
-                                        ? `labeled as "${param.label}"`
-                                        : `#${i}`
-                                } that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`,
-                            )
-                        }
+                        this.raiseEvent(
+                            'warn',
+                            classConstructor,
+                            `constructor() expects argument ${
+                                param.label
+                                    ? `labeled as "${param.label}"`
+                                    : `#${i}`
+                            } that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`,
+                        )
                     } else if (param.type === undefined && param.circular) {
                         param.type = (
                             param.circular as TFunction
@@ -343,15 +325,15 @@ export class Infact<
                         ) {
                             if (!param.nullable && !param.optional) {
                                 throw this.panicOwnError(
+                                    classConstructor,
                                     `Could not inject "${
                                         (param.type as unknown as TFunction)
                                             .name
-                                    }" to "${classConstructor.name}" ` +
-                                        `constructor at index ${i}${
-                                            param.label
-                                                ? ` (${param.label})`
-                                                : ''
-                                        }. The param was not resolved to a value.`,
+                                    }" argument at index ${i}${
+                                        param.label
+                                            ? ` (${param.label})`
+                                            : ''
+                                    }. The param was not resolved to a value.`,
                                     hierarchy,
                                 )
                             }
@@ -383,13 +365,13 @@ export class Infact<
                     } catch (e) {
                         const param = params[i]
                         throw this.panic(
+                            classConstructor,
                             e as Error,
                             `Could not inject "${
                                 (param.type as unknown as TFunction).name
-                            }" to "${classConstructor.name}" ` +
-                                `constructor at index ${i}${
-                                    param.label ? ` (${param.label})` : ''
-                                }. An exception occured.`,
+                            }" argument at index ${i}${
+                                param.label ? ` (${param.label})` : ''
+                            }. An exception occured.`,
                             hierarchy,
                         )
                     }
@@ -426,13 +408,11 @@ export class Infact<
                         )
                     } catch (e) {
                         throw this.panic(
+                            classConstructor,
                             e as Error,
-                            `Could not process prop "${prop as string}" of "${
-                                classConstructor.name
-                            }". ` +
-                                `An error occored on "describeProp" function.\n${
-                                    (e as Error).message
-                                }`,
+                            `Could not process prop "${prop as string}". An error occored on "describeProp" function.\n${
+                                (e as Error).message
+                            }`,
                             hierarchy,
                         )
                     }
@@ -449,11 +429,11 @@ export class Infact<
                             })
                         } catch (e) {
                             throw this.panic(
+                                classConstructor,
                                 e as Error,
                                 `Could not inject prop "${
                                     prop as string
-                                }" to "${classConstructor.name}". ` +
-                                    'An exception occured: ' +
+                                }". An exception occured: ` +
                                     (e as Error).message,
                                 hierarchy,
                             )
@@ -468,8 +448,9 @@ export class Infact<
                             : value
                     } catch (e) {
                         throw this.panic(
+                            classConstructor,
                             e as Error,
-                            `Could not inject prop "${prop}" to "${classConstructor.name}". ` +
+                            `Could not inject prop "${prop}". ` +
                                 'An exception occured: ' +
                                 (e as Error).message,
                             hierarchy,
@@ -479,32 +460,12 @@ export class Infact<
                 Object.assign(instance as TObject, resolvedProps)
             }
 
-            if (this._silent === false) {
-                this.logger.info(
-                    `Class "${
-                        __DYE_BOLD__ +
-                        classConstructor.name +
-                        __DYE_BOLD_OFF__ +
-                        __DYE_DIM__
-                    }" instantiated with: ${__DYE_BLUE__}[${resolvedParams
-                        .map((p) => {
-                            switch (typeof p) {
-                                case 'number':
-                                case 'boolean':
-                                    return p
-                                case 'string':
-                                    return `"${__DYE_GREEN_BRIGHT__}...${__DYE_BLUE__}"`
-                                case 'object':
-                                    if (getConstructor(p))
-                                        return getConstructor(p).name
-                                    return '{}'
-                                default:
-                                    return '*'
-                            }
-                        })
-                        .join(', ')}]`,
-                )
-            }
+            this.raiseEvent(
+                'new-instance',
+                classConstructor,
+                '',
+                resolvedParams,
+            )
         }
         hierarchy.pop()
         syncContextFn && syncContextFn(classMeta)
@@ -517,30 +478,25 @@ export class Infact<
         }
     }
 
-    protected panic(origError: Error, text: string, hierarchy?: string[]) {
-        if (this._silent === true) {
-            // do nothing
-        } else {
-            this.logger.error(
-                text +
-                    (hierarchy
-                        ? '\nHierarchy:\n' + hierarchy.join(' -> ')
-                        : ''),
-            )
-        }
+    protected panic(
+        // eslint-disable-next-line @typescript-eslint/ban-types
+        targetClass: Function,
+        origError: Error,
+        text: string,
+        hierarchy?: string[],
+    ) {
+        this.raiseEvent('error', targetClass, text, hierarchy)
         return origError
     }
 
-    protected panicOwnError(text: string, hierarchy?: string[]) {
-        const e = new Error(
-            text + (hierarchy ? '\nHierarchy:\n' + hierarchy.join(' -> ') : ''),
-        )
-        if (this._silent === true) {
-            return e
-        } else {
-            this.logger.error(e)
-            return e
-        }
+    protected panicOwnError(
+    // eslint-disable-next-line @typescript-eslint/ban-types
+        targetClass: Function,
+        text: string,
+        hierarchy?: string[],
+    ) {
+        const e = new Error(text)
+        return this.panic(targetClass, e, text, hierarchy)
     }
 }
 
@@ -603,7 +559,8 @@ export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TOb
         customData?: Custom
     }) => unknown | Promise<unknown>
     storeProvideRegByInstance?: boolean
-    logger?: TConsoleBase
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    on?: (event: 'new-instance' | 'warn' | 'error', targetClass: Function, message: string, args?: unknown[]) => void
 }
 
 export interface TInfactClassMeta<Param extends TObject = TEmpty> {
