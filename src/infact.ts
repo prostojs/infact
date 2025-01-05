@@ -270,6 +270,7 @@ export class Infact<
                         classMeta,
                         classConstructor,
                         index: i,
+                        scopeId,
                         paramMeta: param,
                         customData: opts?.customData,
                     })
@@ -427,6 +428,7 @@ export class Infact<
                                 classConstructor,
                                 initialValue,
                                 key: prop,
+                                scopeId,
                                 instance,
                                 propMeta,
                                 customData: opts?.customData,
@@ -543,28 +545,45 @@ export function createReplaceRegistry(
 
 interface TEmpty {}
 
-export interface TInfactOptions<Class extends TObject = TEmpty, Prop extends TObject = TEmpty, Param extends TObject = TEmpty, Custom extends TObject = TAny> {
-    describeClass: (classConstructor: TClassConstructor<TAny>) => TInfactClassMeta<Param> & Class
-    describeProp?: (classConstructor: TClassConstructor<TAny>, key: string | symbol) => Prop
-    resolveParam?: (opts: {
-        paramMeta: (TInfactClassMeta<Param>)['constructorParams'][0],
-        classMeta: TInfactClassMeta<Param> & Class,
-        classConstructor: TFunction
-        index: number
-        customData?: Custom
-    }) => unknown | Promise<unknown>
-    resolveProp?: (opts: {
-        instance: TObject,
+export interface TInfactOptions<
+    Class extends TObject = TEmpty,
+    Prop extends TObject = TEmpty,
+    Param extends TObject = TEmpty,
+    Custom extends TObject = TAny,
+> {
+    describeClass: (
+        classConstructor: TClassConstructor<TAny>,
+    ) => TInfactClassMeta<Param> & Class;
+    describeProp?: (
+        classConstructor: TClassConstructor<TAny>,
         key: string | symbol,
-        initialValue: unknown,
-        propMeta: Prop,
-        classMeta: TInfactClassMeta<Param> & Class
-        classConstructor: TFunction
-        customData?: Custom
-    }) => unknown | Promise<unknown>
-    storeProvideRegByInstance?: boolean
+    ) => Prop;
+    resolveParam?: (opts: {
+        paramMeta: TInfactClassMeta<Param>['constructorParams'][0];
+        classMeta: TInfactClassMeta<Param> & Class;
+        classConstructor: TFunction;
+        scopeId?: string | symbol;
+        index: number;
+        customData?: Custom;
+    }) => unknown | Promise<unknown>;
+    resolveProp?: (opts: {
+        instance: TObject;
+        key: string | symbol;
+        initialValue: unknown;
+        propMeta: Prop;
+        scopeId?: string | symbol;
+        classMeta: TInfactClassMeta<Param> & Class;
+        classConstructor: TFunction;
+        customData?: Custom;
+    }) => unknown | Promise<unknown>;
+    storeProvideRegByInstance?: boolean;
     // eslint-disable-next-line @typescript-eslint/ban-types
-    on?: (event: 'new-instance' | 'warn' | 'error', targetClass: Function, message: string, args?: unknown[]) => void
+    on?: (
+        event: 'new-instance' | 'warn' | 'error',
+        targetClass: Function,
+        message: string,
+        args?: unknown[],
+    ) => void;
 }
 
 export interface TInfactClassMeta<Param extends TObject = TEmpty> {
