@@ -1,3 +1,12 @@
+## [0.3.2](https://github.com/prostojs/infact/compare/v0.3.1...v0.3.2) (2025-01-05)
+
+
+### Bug Fixes
+
+* send scopeId to params and props resolvers ([861c9f3](https://github.com/prostojs/infact/commit/861c9f3a718aa64215d14dafdcfbe8d804759120))
+
+
+
 ## [0.3.1](https://github.com/prostojs/infact/compare/v0.3.0...v0.3.1) (2025-01-05)
 
 
