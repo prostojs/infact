@@ -10,6 +10,7 @@ export interface TInfactGetOptions<T extends TObject = TAny> {
     provide?: TProvideRegistry
     replace?: TReplaceRegistry
     hierarchy?: string[]
+    fromScope?: string | symbol
     syncContextFn?: TSyncContextFn<TAny>
 }
 
@@ -188,22 +189,24 @@ export class Infact<
                       }
             }
         }
-        if (classMeta.scopeId && classMeta.global) {
+        const scopeId = classMeta.scopeId || opts?.fromScope
+        const supportGlobalRegistries = !opts?.fromScope
+        if (scopeId && classMeta.global) {
             throw this.panicOwnError(
                 classConstructor,
-                `The scoped Injectable is not supported for Global scope. (${classMeta.scopeId as string})`,
+                `The scoped Injectable is not supported for Global scope. (${scopeId as string})`,
                 hierarchy,
             )
         }
-        if (classMeta.scopeId && !this.scopes[classMeta.scopeId]) {
+        if (scopeId && !this.scopes[scopeId]) {
             throw this.panicOwnError(
                 classConstructor,
-                `The requested scope "${classMeta.scopeId as string}" isn't registered.`,
+                `The requested scope "${scopeId as string}" isn't registered.`,
                 hierarchy,
             )
         }
-        const scope = classMeta.scopeId
-            ? this.scopes[classMeta.scopeId]
+        const scope = scopeId
+            ? this.scopes[scopeId]
             : ({} as TRegistry)
         const mergedProvide = {
             ...(provide || {}),
@@ -220,11 +223,11 @@ export class Infact<
             }
         }
         if (
-            !this.registry[instanceKey] &&
-            !globalRegistry[instanceKey] &&
+            !(supportGlobalRegistries && this.registry[instanceKey]) &&
+            !(supportGlobalRegistries && globalRegistry[instanceKey]) &&
             !scope[instanceKey]
         ) {
-            const registry = classMeta.scopeId
+            const registry = scopeId
                 ? scope
                 : classMeta.global
                     ? globalRegistry
@@ -345,6 +348,7 @@ export class Infact<
                                 replace,
                                 hierarchy,
                                 syncContextFn,
+                                fromScope: param.fromScope,
                                 customData: opts?.customData,
                             },
                             param.optional || param.nullable,
@@ -578,6 +582,7 @@ export interface TInfactConstructorParamMeta {
     type?: TFunction
     inject?: string | symbol
     nullable?: boolean
+    fromScope?: string | symbol
     optional?: boolean // same as nullable for compatibility
 }
 
