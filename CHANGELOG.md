@@ -1,3 +1,12 @@
+## [0.3.3](https://github.com/prostojs/infact/compare/v0.3.2...v0.3.3) (2025-01-05)
+
+
+### Features
+
+* add provide support on params level ([d345597](https://github.com/prostojs/infact/commit/d3455976a5ebbfaa82cb872f48cf8e6cb2ff7e65))
+
+
+
 ## [0.3.2](https://github.com/prostojs/infact/compare/v0.3.1...v0.3.2) (2025-01-05)
 
 
