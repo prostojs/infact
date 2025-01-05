@@ -1,3 +1,12 @@
+## [0.3.1](https://github.com/prostojs/infact/compare/v0.3.0...v0.3.1) (2025-01-05)
+
+
+### Features
+
+* add fromScope param support ([c13a37f](https://github.com/prostojs/infact/commit/c13a37fe6a72e1ec5b439bcce3e0aab99f59fc40))
+
+
+
 # [0.3.0](https://github.com/prostojs/infact/compare/v0.2.4...v0.3.0) (2024-12-29)
 
 
