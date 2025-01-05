@@ -580,6 +580,7 @@ export interface TInfactOptions<
     // eslint-disable-next-line @typescript-eslint/ban-types
     on?: (
         event: 'new-instance' | 'warn' | 'error',
+        // eslint-disable-next-line @typescript-eslint/ban-types
         targetClass: Function,
         message: string,
         args?: unknown[],
