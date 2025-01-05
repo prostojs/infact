@@ -345,7 +345,7 @@ export class Infact<
                         resolvedParams[i] = this.get(
                             param.type as TClassConstructor<IT>,
                             {
-                                provide: mergedProvide,
+                                provide: param.provide ? { ...mergedProvide, ...param.provide } : mergedProvide,
                                 replace,
                                 hierarchy,
                                 syncContextFn,
@@ -557,7 +557,9 @@ export interface TInfactOptions<
     describeProp?: (
         classConstructor: TClassConstructor<TAny>,
         key: string | symbol,
-    ) => Prop;
+    ) => Prop & {
+        provide?: TProvideRegistry;
+    };
     resolveParam?: (opts: {
         paramMeta: TInfactClassMeta<Param>['constructorParams'][0];
         classMeta: TInfactClassMeta<Param> & Class;
@@ -597,13 +599,14 @@ export interface TInfactClassMeta<Param extends TObject = TEmpty> {
 }
 
 export interface TInfactConstructorParamMeta {
-    label?: string
-    circular?: () => TClassConstructor<TAny>
-    type?: TFunction
-    inject?: string | symbol
-    nullable?: boolean
-    fromScope?: string | symbol
-    optional?: boolean // same as nullable for compatibility
+    label?: string;
+    circular?: () => TClassConstructor<TAny>;
+    type?: TFunction;
+    inject?: string | symbol;
+    nullable?: boolean;
+    fromScope?: string | symbol;
+    provide?: TProvideRegistry;
+    optional?: boolean; // same as nullable for compatibility
 }
 
 interface TProvideMeta {
