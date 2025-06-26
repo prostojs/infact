@@ -1,6 +1,6 @@
 {
   "name": "@prostojs/infact",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Instance Factory and Instance Registry for Metadata based Dependency Injection scenarios",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",

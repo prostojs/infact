@@ -1,3 +1,12 @@
+## [0.3.4](https://github.com/prostojs/infact/compare/v0.3.3...v0.3.4) (2025-06-26)
+
+
+### Features
+
+* expose mergedProvide to resolve param callback ([f8e3b31](https://github.com/prostojs/infact/commit/f8e3b3115873635e2756e139c5051e0db731bd15))
+
+
+
 ## [0.3.3](https://github.com/prostojs/infact/compare/v0.3.2...v0.3.3) (2025-01-05)
 
 
