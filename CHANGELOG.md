@@ -1,3 +1,12 @@
+## [0.3.5](https://github.com/prostojs/infact/compare/v0.3.4...v0.3.5) (2025-06-26)
+
+
+### Bug Fixes
+
+* expose "provide" to resolveProp as well ([180ee32](https://github.com/prostojs/infact/commit/180ee32b3ba65b4dad239ca993facdd349a9c717))
+
+
+
 ## [0.3.4](https://github.com/prostojs/infact/compare/v0.3.3...v0.3.4) (2025-06-26)
 
 
