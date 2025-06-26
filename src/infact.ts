@@ -433,6 +433,7 @@ export class Infact<
                                 instance,
                                 propMeta,
                                 customData: opts?.customData,
+                                provide: mergedProvide,
                             })
                         } catch (e) {
                             throw this.panic(
@@ -568,7 +569,7 @@ export interface TInfactOptions<
         scopeId?: string | symbol;
         index: number;
         customData?: Custom;
-        provide?: TProvideRegistry
+        provide: TProvideRegistry
     }) => unknown | Promise<unknown>;
     resolveProp?: (opts: {
         instance: TObject;
@@ -579,6 +580,7 @@ export interface TInfactOptions<
         classMeta: TInfactClassMeta<Param> & Class;
         classConstructor: TFunction;
         customData?: Custom;
+        provide: TProvideRegistry
     }) => unknown | Promise<unknown>;
     storeProvideRegByInstance?: boolean;
     // eslint-disable-next-line @typescript-eslint/ban-types
