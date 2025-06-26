@@ -273,6 +273,7 @@ export class Infact<
                         scopeId,
                         paramMeta: param,
                         customData: opts?.customData,
+                        provide: mergedProvide,
                     })
                 }
             }
@@ -567,6 +568,7 @@ export interface TInfactOptions<
         scopeId?: string | symbol;
         index: number;
         customData?: Custom;
+        provide?: TProvideRegistry
     }) => unknown | Promise<unknown>;
     resolveProp?: (opts: {
         instance: TObject;
