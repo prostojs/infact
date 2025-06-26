@@ -273,7 +273,16 @@ export class Infact<
                         scopeId,
                         paramMeta: param,
                         customData: opts?.customData,
-                        provide: mergedProvide,
+                        instantiate: (c) => {
+                            return this.get(c, {
+                                customData: opts?.customData,
+                                fromScope: opts?.fromScope,
+                                syncContextFn,
+                                hierarchy,
+                                provide,
+                                replace,
+                            })
+                        },
                     })
                 }
             }
@@ -433,7 +442,16 @@ export class Infact<
                                 instance,
                                 propMeta,
                                 customData: opts?.customData,
-                                provide: mergedProvide,
+                                instantiate: (c) => {
+                                    return this.get(c, {
+                                        customData: opts?.customData,
+                                        fromScope: opts?.fromScope,
+                                        syncContextFn,
+                                        hierarchy,
+                                        provide,
+                                        replace,
+                                    })
+                                },
                             })
                         } catch (e) {
                             throw this.panic(
@@ -569,7 +587,7 @@ export interface TInfactOptions<
         scopeId?: string | symbol;
         index: number;
         customData?: Custom;
-        provide: TProvideRegistry
+        instantiate: <IT extends TObject>(c: TClassConstructor<IT>) => Promise<IT>;
     }) => unknown | Promise<unknown>;
     resolveProp?: (opts: {
         instance: TObject;
@@ -580,7 +598,7 @@ export interface TInfactOptions<
         classMeta: TInfactClassMeta<Param> & Class;
         classConstructor: TFunction;
         customData?: Custom;
-        provide: TProvideRegistry
+        instantiate: <IT extends TObject>(c: TClassConstructor<IT>) => Promise<IT>;
     }) => unknown | Promise<unknown>;
     storeProvideRegByInstance?: boolean;
     // eslint-disable-next-line @typescript-eslint/ban-types
