@@ -1,3 +1,12 @@
+## [0.3.6](https://github.com/prostojs/infact/compare/v0.3.5...v0.3.6) (2025-06-26)
+
+
+### Bug Fixes
+
+* expose "instantiate" cb instead of provide/replace ([8de245f](https://github.com/prostojs/infact/commit/8de245f7a4d0c6b641c7c458aec8346ff2c9f0b8))
+
+
+
 ## [0.3.5](https://github.com/prostojs/infact/compare/v0.3.4...v0.3.5) (2025-06-26)
 
 
