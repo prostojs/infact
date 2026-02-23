@@ -1,6 +1,6 @@
 # prostojs/infact
 
-Zero dependency **In**stance **Fact**ory and Instance Registry for Metadata based Dependency Injection scenarios. **Infact** = **In***stance* **fact***ory*. 
+Zero dependency **In**stance **Fact**ory and Instance Registry for Metadata based Dependency Injection scenarios. **Infact** = **In\***stance\* **fact\***ory\*.
 
 It solves the programmatic dependency injection problem in a generic way. You must take care of metadata yourself.
 
@@ -50,13 +50,13 @@ const infact = new Infact({
                 // circular function:
                 {
                     type: undefined,
-                    circular: () => CircularDepClass, 
+                    circular: () => CircularDepClass,
                 },
                 // to utilize provided by string key dependencies
                 // you may use `inject` property
                 {
                     type: SomeClass,
-                    inject: 'string key', 
+                    inject: 'string key',
                 },
             ],
         }

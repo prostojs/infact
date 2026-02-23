@@ -63,9 +63,7 @@ function createConfig(type) {
                     declaration: false,
                     declarationMap: false,
                     removeComments: true,
-                    include: [
-                        'src',
-                    ],
+                    include: ['src'],
                     exclude: ['**/__tests__', '*.spec.ts', 'explorations'],
                 },
             }),
@@ -83,12 +81,14 @@ function createDtsConfig() {
             format: 'es',
             sourcemap: false,
         },
-        plugins: [dts({
-            tsconfig: 'tsconfig.json',
-            compilerOptions: {
-                removeComments: false,
-            }
-        })],
+        plugins: [
+            dts({
+                tsconfig: 'tsconfig.json',
+                compilerOptions: {
+                    removeComments: false,
+                },
+            }),
+        ],
     }
 }
 

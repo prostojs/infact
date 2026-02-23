@@ -1,9 +1,7 @@
 {
     "compilerOptions": {
         "target": "es2019",
-        "lib": [
-            "es2019"
-        ],
+        "lib": ["es2019"],
         "module": "ESNext",
         "declaration": false,
         "sourceMap": true,
@@ -23,8 +21,8 @@
         "removeComments": true,
         "emitDecoratorMetadata": true,
         "experimentalDecorators": true,
-        "types": ["vitest/globals", "node"],
+        "types": ["vitest/globals", "node"]
     },
-    "include": ["src/*", "src/**/*", "**/*.spec.ts"],
+    "include": ["src/*", "src/**/*", "**/*.spec.ts", "node_modules/@prostojs/dye/global.d.ts"],
     "exclude": ["node_modules", "explorations", "scripts"]
 }

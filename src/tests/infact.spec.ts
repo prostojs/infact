@@ -1,7 +1,21 @@
-import { Infact, TInfactClassMeta, createProvideRegistry, TInfactOptions } from '..'
+import {
+    Infact,
+    TInfactClassMeta,
+    createProvideRegistry,
+    TInfactOptions,
+} from '..'
 import { CircularTestClass1 } from './circular1.artifacts'
 import { CircularTestClass2 } from './circular2.artifacts'
-import { ChildClassTestClass1, ChildClassTestClass2, ParentTestClass, ProviderTestClass1, ProviderTestClass2, WithProps, OptionalInject, RequiredInject } from './infact.artifacts'
+import {
+    ChildClassTestClass1,
+    ChildClassTestClass2,
+    ParentTestClass,
+    ProviderTestClass1,
+    ProviderTestClass2,
+    WithProps,
+    OptionalInject,
+    RequiredInject,
+} from './infact.artifacts'
 
 function symbol(v: unknown) {
     return Symbol.for(v as string)
@@ -9,7 +23,10 @@ function symbol(v: unknown) {
 
 interface Empty {}
 
-const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | symbol, unknown>> = {
+const meta: Record<
+    symbol,
+    TInfactClassMeta<Empty> & TMeta & Record<string | symbol, unknown>
+> = {
     [symbol(ParentTestClass)]: {
         injectable: true,
         constructorParams: [
@@ -19,8 +36,14 @@ const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | sym
             { type: ProviderTestClass2 },
         ],
         provide: createProvideRegistry(
-            [ProviderTestClass2, () => new ProviderTestClass2('custom by type')],
-            ['custom-provider-1', () => new ProviderTestClass1('custom by string')],
+            [
+                ProviderTestClass2,
+                () => new ProviderTestClass2('custom by type'),
+            ],
+            [
+                'custom-provider-1',
+                () => new ProviderTestClass1('custom by string'),
+            ],
         ),
     },
     [symbol(ChildClassTestClass1)]: {
@@ -38,7 +61,10 @@ const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | sym
             { type: ProviderTestClass1, inject: 'custom-provider-1' },
             { type: ProviderTestClass1 },
         ],
-        provide: createProvideRegistry([ProviderTestClass2, () => new ProviderTestClass2('custom for child')]),
+        provide: createProvideRegistry([
+            ProviderTestClass2,
+            () => new ProviderTestClass2('custom for child'),
+        ]),
     },
     [symbol(ProviderTestClass1)]: {
         injectable: true,
@@ -48,7 +74,7 @@ const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | sym
         injectable: true,
         constructorParams: [],
     },
-    
+
     [symbol(CircularTestClass1)]: {
         injectable: true,
         constructorParams: [
@@ -88,12 +114,12 @@ const meta: Record<symbol, TInfactClassMeta<Empty> & TMeta & Record<string | sym
 }
 
 interface TMeta {
-    resolve?: (v: unknown) => unknown,
-    propList?: (string)[]
+    resolve?: (v: unknown) => unknown
+    propList?: string[]
 }
 
 const options: TInfactOptions<TMeta, TMeta, Empty> = {
-    describeClass: c => {
+    describeClass: (c) => {
         return meta[symbol(c)]
     },
     resolveParam: ({ paramMeta }) => {
@@ -171,7 +197,10 @@ describe('infact', () => {
     })
 
     it('must get classInstance for instance', async () => {
-        const c2 = await infact.getForInstance(parent.child1, ProviderTestClass2)
+        const c2 = await infact.getForInstance(
+            parent.child1,
+            ProviderTestClass2,
+        )
         expect(c2.config).toBe('custom by type')
     })
 
@@ -187,7 +216,10 @@ describe('infact', () => {
     })
 
     it('must not let required inject be empty', async () => {
-        await expect(async () => await infact.get(RequiredInject)).rejects.
-            toMatchInlineSnapshot('[Error: Could not inject "required-inject" argument with index 0]')
+        await expect(
+            async () => await infact.get(RequiredInject),
+        ).rejects.toMatchInlineSnapshot(
+            '[Error: Could not inject "required-inject" argument with index 0]',
+        )
     })
 })

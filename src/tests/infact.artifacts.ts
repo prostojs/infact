@@ -1,13 +1,9 @@
 export class ProviderTestClass1 {
-    constructor(
-        public config: string
-    ) {}
+    constructor(public config: string) {}
 }
 
 export class ProviderTestClass2 {
-    constructor(
-        public config: string
-    ) {}
+    constructor(public config: string) {}
 }
 
 export class ChildClassTestClass1 {
@@ -48,13 +44,9 @@ export class WithProps {
 }
 
 export class OptionalInject {
-    constructor(
-        public data?: string,
-    ) {}
+    constructor(public data?: string) {}
 }
 
 export class RequiredInject {
-    constructor(
-        public data: string,
-    ) {}
+    constructor(public data: string) {}
 }

@@ -3,7 +3,9 @@ import { TAny, TClassConstructor, TFunction, TObject } from './types'
 const globalRegistry: Record<string | symbol, unknown> = {}
 
 type TRegistry = Record<string | symbol, unknown>
-type TSyncContextFn<T extends TObject = TEmpty> = (classMeta?: T & TInfactClassMeta) => void | unknown
+type TSyncContextFn<T extends TObject = TEmpty> = (
+    classMeta?: T & TInfactClassMeta,
+) => void | unknown
 
 export interface TInfactGetOptions<T extends TObject = TAny> {
     customData?: T
@@ -22,18 +24,18 @@ export class Infact<
     Param extends TObject = TEmpty,
     Custom extends TObject = TAny,
 > {
-    protected registry: TRegistry = {};
+    protected registry: TRegistry = {}
 
     protected instanceRegistries: WeakMap<
         TObject,
         {
-            provide: TProvideRegistry;
-            replace?: TReplaceRegistry;
-            customData?: Custom;
+            provide: TProvideRegistry
+            replace?: TReplaceRegistry
+            customData?: Custom
         }
-    > = new WeakMap();
+    > = new WeakMap()
 
-    protected scopes: Record<string | symbol, TRegistry> = {};
+    protected scopes: Record<string | symbol, TRegistry> = {}
 
     constructor(
         protected options: TInfactOptions<Class, Prop, Param, Custom>,
@@ -117,9 +119,9 @@ export class Infact<
     }
 
     public getInstanceRegistries(instance: TObject): {
-        provide?: TProvideRegistry;
-        replace?: TReplaceRegistry;
-        customData?: Custom;
+        provide?: TProvideRegistry
+        replace?: TReplaceRegistry
+        customData?: Custom
     } {
         return this.instanceRegistries.get(instance) || {}
     }
@@ -132,15 +134,15 @@ export class Infact<
         O extends true
             ?
                   | {
-                        instance: IT;
-                        mergedProvide: TProvideRegistry;
-                        replace?: TReplaceRegistry;
+                        instance: IT
+                        mergedProvide: TProvideRegistry
+                        replace?: TReplaceRegistry
                     }
                   | undefined
             : {
-                  instance: IT;
-                  mergedProvide: TProvideRegistry;
-                  replace?: TReplaceRegistry;
+                  instance: IT
+                  mergedProvide: TProvideRegistry
+                  replace?: TReplaceRegistry
               }
     > {
         const hierarchy = opts?.hierarchy || []
@@ -157,7 +159,11 @@ export class Infact<
         try {
             classMeta = this.options.describeClass(classConstructor)
         } catch (e) {
-            throw this.panicOwnError(classConstructor, `An error occored on "describeClass" function: ${ (e as Error).message}`, hierarchy)
+            throw this.panicOwnError(
+                classConstructor,
+                `An error occored on "describeClass" function: ${(e as Error).message}`,
+                hierarchy,
+            )
         }
         if (!classMeta || !classMeta.injectable) {
             if (provide && provide[instanceKey]) {
@@ -172,20 +178,24 @@ export class Infact<
                 }
             }
             if (!optional) {
-                throw this.panicOwnError(classConstructor, 'Class is not Injectable and not Optional.',hierarchy)
+                throw this.panicOwnError(
+                    classConstructor,
+                    'Class is not Injectable and not Optional.',
+                    hierarchy,
+                )
             } else {
                 return undefined as O extends true
                     ?
                           | {
-                                instance: IT;
-                                mergedProvide: TProvideRegistry;
-                                replace: TReplaceRegistry;
+                                instance: IT
+                                mergedProvide: TProvideRegistry
+                                replace: TReplaceRegistry
                             }
                           | undefined
                     : {
-                          instance: IT;
-                          mergedProvide: TProvideRegistry;
-                          replace: TReplaceRegistry;
+                          instance: IT
+                          mergedProvide: TProvideRegistry
+                          replace: TReplaceRegistry
                       }
             }
         }
@@ -205,9 +215,7 @@ export class Infact<
                 hierarchy,
             )
         }
-        const scope = scopeId
-            ? this.scopes[scopeId]
-            : ({} as TRegistry)
+        const scope = scopeId ? this.scopes[scopeId] : ({} as TRegistry)
         const mergedProvide = {
             ...(provide || {}),
             ...(classMeta.provide || {}),
@@ -230,8 +238,8 @@ export class Infact<
             const registry = scopeId
                 ? scope
                 : classMeta.global
-                    ? globalRegistry
-                    : this.registry
+                  ? globalRegistry
+                  : this.registry
             const params = classMeta.constructorParams || []
             const isCircular = !!params.find((p) => !!p.circular)
             if (isCircular) {
@@ -344,9 +352,7 @@ export class Infact<
                                         (param.type as unknown as TFunction)
                                             .name
                                     }" argument at index ${i}${
-                                        param.label
-                                            ? ` (${param.label})`
-                                            : ''
+                                        param.label ? ` (${param.label})` : ''
                                     }. The param was not resolved to a value.`,
                                     hierarchy,
                                 )
@@ -355,7 +361,9 @@ export class Infact<
                         resolvedParams[i] = this.get(
                             param.type as TClassConstructor<IT>,
                             {
-                                provide: param.provide ? { ...mergedProvide, ...param.provide } : mergedProvide,
+                                provide: param.provide
+                                    ? { ...mergedProvide, ...param.provide }
+                                    : mergedProvide,
                                 replace,
                                 hierarchy,
                                 syncContextFn,
@@ -516,7 +524,7 @@ export class Infact<
     }
 
     protected panicOwnError(
-    // eslint-disable-next-line @typescript-eslint/ban-types
+        // eslint-disable-next-line @typescript-eslint/ban-types
         targetClass: Function,
         text: string,
         hierarchy?: string[],
@@ -573,34 +581,38 @@ export interface TInfactOptions<
 > {
     describeClass: (
         classConstructor: TClassConstructor<TAny>,
-    ) => TInfactClassMeta<Param> & Class;
+    ) => TInfactClassMeta<Param> & Class
     describeProp?: (
         classConstructor: TClassConstructor<TAny>,
         key: string | symbol,
     ) => Prop & {
-        provide?: TProvideRegistry;
-    };
+        provide?: TProvideRegistry
+    }
     resolveParam?: (opts: {
-        paramMeta: TInfactClassMeta<Param>['constructorParams'][0];
-        classMeta: TInfactClassMeta<Param> & Class;
-        classConstructor: TFunction;
-        scopeId?: string | symbol;
-        index: number;
-        customData?: Custom;
-        instantiate: <IT extends TObject>(c: TClassConstructor<IT>) => Promise<IT>;
-    }) => unknown | Promise<unknown>;
+        paramMeta: TInfactClassMeta<Param>['constructorParams'][0]
+        classMeta: TInfactClassMeta<Param> & Class
+        classConstructor: TFunction
+        scopeId?: string | symbol
+        index: number
+        customData?: Custom
+        instantiate: <IT extends TObject>(
+            c: TClassConstructor<IT>,
+        ) => Promise<IT>
+    }) => unknown | Promise<unknown>
     resolveProp?: (opts: {
-        instance: TObject;
-        key: string | symbol;
-        initialValue: unknown;
-        propMeta: Prop;
-        scopeId?: string | symbol;
-        classMeta: TInfactClassMeta<Param> & Class;
-        classConstructor: TFunction;
-        customData?: Custom;
-        instantiate: <IT extends TObject>(c: TClassConstructor<IT>) => Promise<IT>;
-    }) => unknown | Promise<unknown>;
-    storeProvideRegByInstance?: boolean;
+        instance: TObject
+        key: string | symbol
+        initialValue: unknown
+        propMeta: Prop
+        scopeId?: string | symbol
+        classMeta: TInfactClassMeta<Param> & Class
+        classConstructor: TFunction
+        customData?: Custom
+        instantiate: <IT extends TObject>(
+            c: TClassConstructor<IT>,
+        ) => Promise<IT>
+    }) => unknown | Promise<unknown>
+    storeProvideRegByInstance?: boolean
     // eslint-disable-next-line @typescript-eslint/ban-types
     on?: (
         event: 'new-instance' | 'warn' | 'error',
@@ -608,7 +620,7 @@ export interface TInfactOptions<
         targetClass: Function,
         message: string,
         args?: unknown[],
-    ) => void;
+    ) => void
 }
 
 export interface TInfactClassMeta<Param extends TObject = TEmpty> {
@@ -621,22 +633,22 @@ export interface TInfactClassMeta<Param extends TObject = TEmpty> {
 }
 
 export interface TInfactConstructorParamMeta {
-    label?: string;
-    circular?: () => TClassConstructor<TAny>;
-    type?: TFunction;
-    inject?: string | symbol;
-    nullable?: boolean;
-    fromScope?: string | symbol;
-    provide?: TProvideRegistry;
-    optional?: boolean; // same as nullable for compatibility
+    label?: string
+    circular?: () => TClassConstructor<TAny>
+    type?: TFunction
+    inject?: string | symbol
+    nullable?: boolean
+    fromScope?: string | symbol
+    provide?: TProvideRegistry
+    optional?: boolean // same as nullable for compatibility
 }
 
 interface TProvideMeta {
-    fn: TProvideFn, 
-    resolved?: boolean, 
+    fn: TProvideFn
+    resolved?: boolean
     value?: unknown
 }
 
 export type TProvideRegistry = Record<string | symbol, TProvideMeta>
-export type TReplaceRegistry = Record<symbol, TClassConstructor<TAny>>;
+export type TReplaceRegistry = Record<symbol, TClassConstructor<TAny>>
 export type TProvideFn = () => TAny
