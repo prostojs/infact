@@ -32,7 +32,6 @@ module.exports = {
   root: true,
   env: {
     node: true,
-    jest: true,
   },
   rules: {
     'indent': ['error', 4, { 'SwitchCase': 1 }],
