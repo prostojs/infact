@@ -2,6 +2,16 @@ import { TAny, TClassConstructor, TFunction, TObject } from './types'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
 
+const symbolCache = new WeakMap<object, symbol>()
+function classSymbol(c: object): symbol {
+    let s = symbolCache.get(c)
+    if (!s) {
+        s = Symbol.for(c as unknown as string)
+        symbolCache.set(c, s)
+    }
+    return s
+}
+
 type TRegistry = Record<string | symbol, unknown>
 type TSyncContextFn<T extends TObject = TEmpty> = (
     classMeta?: T & TInfactClassMeta,
@@ -50,6 +60,18 @@ export class Infact<
         this.registry = {}
         this.instanceRegistries = new WeakMap()
         this.scopes = {}
+    }
+
+    /**
+     * Cleanup the global (cross-Infact) singleton registry.
+     *
+     * Use with care — affects every Infact instance sharing
+     * global singletons.
+     */
+    public static _cleanupGlobal() {
+        for (const key of Reflect.ownKeys(globalRegistry)) {
+            delete globalRegistry[key]
+        }
     }
 
     public raiseEvent(
@@ -151,17 +173,17 @@ export class Infact<
         const syncContextFn = opts?.syncContextFn
         hierarchy.push(classConstructor.name)
         let classMeta: (Class & TInfactClassMeta<Param>) | undefined
-        let instanceKey = Symbol.for(classConstructor as unknown as string)
+        let instanceKey = classSymbol(classConstructor)
         if (replace && replace[instanceKey]) {
             classConstructor = replace?.[instanceKey]
-            instanceKey = Symbol.for(classConstructor as unknown as string)
+            instanceKey = classSymbol(classConstructor)
         }
         try {
             classMeta = this.options.describeClass(classConstructor)
         } catch (e) {
             throw this.panicOwnError(
                 classConstructor,
-                `An error occored on "describeClass" function: ${(e as Error).message}`,
+                `An error occurred on "describeClass" function: ${(e as Error).message}`,
                 hierarchy,
             )
         }
@@ -216,10 +238,10 @@ export class Infact<
             )
         }
         const scope = scopeId ? this.scopes[scopeId] : ({} as TRegistry)
-        const mergedProvide = {
-            ...(provide || {}),
-            ...(classMeta.provide || {}),
-        }
+        const classProvide = classMeta.provide
+        const mergedProvide = classProvide
+            ? { ...(provide || {}), ...classProvide }
+            : provide || {}
         if (mergedProvide[instanceKey]) {
             syncContextFn && syncContextFn(classMeta)
             return {
@@ -241,272 +263,305 @@ export class Infact<
                   ? globalRegistry
                   : this.registry
             const params = classMeta.constructorParams || []
-            const isCircular = !!params.find((p) => !!p.circular)
+            const isCircular = !!params.some((p) => !!p.circular)
+            let resolveCreation: ((v: unknown) => void) | undefined
+            let rejectCreation: ((e: unknown) => void) | undefined
             if (isCircular) {
                 registry[instanceKey] = Object.create(
                     classConstructor.prototype,
                 ) // empty "instance"
-            }
-
-            // Resolving Params
-            const resolvedParams = []
-            for (let i = 0; i < params.length; i++) {
-                const param = params[i]
-                if (param.inject) {
-                    if (mergedProvide && mergedProvide[param.inject]) {
-                        resolvedParams[i] = getProvidedValue(
-                            mergedProvide[param.inject],
-                        )
-                    } else if (param.nullable || param.optional) {
-                        resolvedParams[i] = UNDEFINED
-                    } else {
-                        /* istanbul ignore next line */
-                        throw this.panicOwnError(
-                            classConstructor,
-                            `Could not inject ${JSON.stringify(
-                                param.inject,
-                            )} argument ${
-                                param.label
-                                    ? `labeled as "${param.label}"`
-                                    : `with index ${i}`
-                            }`,
-                            hierarchy,
-                        )
-                    }
-                } else if (this.options.resolveParam) {
-                    resolvedParams[i] = this.options.resolveParam({
-                        classMeta,
-                        classConstructor,
-                        index: i,
-                        scopeId,
-                        paramMeta: param,
-                        customData: opts?.customData,
-                        instantiate: (c) => {
-                            return this.get(c, {
-                                customData: opts?.customData,
-                                fromScope: opts?.fromScope,
-                                syncContextFn,
-                                hierarchy,
-                                provide,
-                                replace,
-                            })
-                        },
-                    })
-                }
-            }
-
-            for (let i = 0; i < resolvedParams.length; i++) {
-                const rp: unknown = resolvedParams[i]
-                if (
-                    rp &&
-                    rp !== UNDEFINED &&
-                    typeof (rp as Promise<unknown>).then === 'function'
-                ) {
-                    try {
-                        syncContextFn && syncContextFn(classMeta)
-                        resolvedParams[i] = await (rp as Promise<unknown>)
-                    } catch (e) {
-                        const param = params[i]
-                        throw this.panic(
-                            classConstructor,
-                            e as Error,
-                            `Could not inject "${
-                                (param.type as unknown as TFunction).name
-                            }" argument at index ${i}${
-                                param.label ? ` (${param.label})` : ''
-                            }. An exception occured.`,
-                            hierarchy,
-                        )
-                    }
-                }
-            }
-
-            for (let i = 0; i < params.length; i++) {
-                const param = params[i]
-                if (typeof resolvedParams[i] === 'undefined') {
-                    if (param.type === undefined && !param.circular) {
-                        this.raiseEvent(
-                            'warn',
-                            classConstructor,
-                            `constructor() expects argument ${
-                                param.label
-                                    ? `labeled as "${param.label}"`
-                                    : `#${i}`
-                            } that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`,
-                        )
-                    } else if (param.type === undefined && param.circular) {
-                        param.type = (
-                            param.circular as TFunction
-                        )() as TFunction
-                    }
-                    if (typeof param.type === 'function') {
-                        if (
-                            [String, Number, Date, Array].includes(
-                                param.type as TAny,
-                            )
-                        ) {
-                            if (!param.nullable && !param.optional) {
-                                throw this.panicOwnError(
-                                    classConstructor,
-                                    `Could not inject "${
-                                        (param.type as unknown as TFunction)
-                                            .name
-                                    }" argument at index ${i}${
-                                        param.label ? ` (${param.label})` : ''
-                                    }. The param was not resolved to a value.`,
-                                    hierarchy,
-                                )
-                            }
-                        }
-                        resolvedParams[i] = this.get(
-                            param.type as TClassConstructor<IT>,
-                            {
-                                provide: param.provide
-                                    ? { ...mergedProvide, ...param.provide }
-                                    : mergedProvide,
-                                replace,
-                                hierarchy,
-                                syncContextFn,
-                                fromScope: param.fromScope,
-                                customData: opts?.customData,
-                            },
-                            param.optional || param.nullable,
-                        )
-                    }
-                }
-                if (resolvedParams[i] === UNDEFINED) {
-                    resolvedParams[i] = undefined
-                }
-            }
-
-            for (let i = 0; i < resolvedParams.length; i++) {
-                const rp: unknown = resolvedParams[i]
-                if (rp && typeof (rp as Promise<unknown>).then === 'function') {
-                    try {
-                        syncContextFn && syncContextFn(classMeta)
-                        resolvedParams[i] = await (rp as Promise<unknown>)
-                    } catch (e) {
-                        const param = params[i]
-                        throw this.panic(
-                            classConstructor,
-                            e as Error,
-                            `Could not inject "${
-                                (param.type as unknown as TFunction).name
-                            }" argument at index ${i}${
-                                param.label ? ` (${param.label})` : ''
-                            }. An exception occured.`,
-                            hierarchy,
-                        )
-                    }
-                }
-            }
-
-            const instance = new classConstructor(...(resolvedParams as []))
-            if (isCircular) {
-                Object.assign(registry[instanceKey] as TObject, instance)
             } else {
-                registry[instanceKey] = instance
+                const promise = new Promise((resolve, reject) => {
+                    resolveCreation = resolve
+                    rejectCreation = reject
+                })
+                promise.catch(() => {}) // prevent unhandled rejection when no concurrent awaiter
+                registry[instanceKey] = promise
             }
 
-            // Resolving Props
-            if (
-                this.options.describeProp &&
-                this.options.resolveProp &&
-                classMeta.properties &&
-                classMeta.properties.length
-            ) {
-                const resolvedProps: Record<
-                    string | symbol,
-                    Promise<unknown> | unknown
-                > = {}
-                for (const prop of classMeta.properties) {
-                    const initialValue = (
-                        instance as Record<string | symbol, unknown>
-                    )[prop]
-                    let propMeta: Prop | undefined
-                    try {
-                        propMeta = this.options.describeProp(
-                            classConstructor,
-                            prop,
-                        )
-                    } catch (e) {
-                        throw this.panic(
-                            classConstructor,
-                            e as Error,
-                            `Could not process prop "${prop as string}". An error occored on "describeProp" function.\n${
-                                (e as Error).message
-                            }`,
-                            hierarchy,
-                        )
-                    }
-                    if (propMeta) {
-                        try {
-                            resolvedProps[prop] = this.options.resolveProp({
-                                classMeta,
+            try {
+                // Resolving Params
+                const resolvedParams = []
+                for (let i = 0; i < params.length; i++) {
+                    const param = params[i]
+                    if (param.inject) {
+                        if (mergedProvide && mergedProvide[param.inject]) {
+                            resolvedParams[i] = getProvidedValue(
+                                mergedProvide[param.inject],
+                            )
+                        } else if (param.nullable || param.optional) {
+                            resolvedParams[i] = UNDEFINED
+                        } else {
+                            /* istanbul ignore next line */
+                            throw this.panicOwnError(
                                 classConstructor,
-                                initialValue,
-                                key: prop,
-                                scopeId,
-                                instance,
-                                propMeta,
-                                customData: opts?.customData,
-                                instantiate: (c) => {
-                                    return this.get(c, {
-                                        customData: opts?.customData,
-                                        fromScope: opts?.fromScope,
-                                        syncContextFn,
+                                `Could not inject ${JSON.stringify(
+                                    param.inject,
+                                )} argument ${
+                                    param.label
+                                        ? `labeled as "${param.label}"`
+                                        : `with index ${i}`
+                                }`,
+                                hierarchy,
+                            )
+                        }
+                    } else if (this.options.resolveParam) {
+                        resolvedParams[i] = this.options.resolveParam({
+                            classMeta,
+                            classConstructor,
+                            index: i,
+                            scopeId,
+                            paramMeta: param,
+                            customData: opts?.customData,
+                            instantiate: (c) => {
+                                return this.get(c, {
+                                    customData: opts?.customData,
+                                    fromScope: opts?.fromScope,
+                                    syncContextFn,
+                                    hierarchy,
+                                    provide,
+                                    replace,
+                                })
+                            },
+                        })
+                    }
+                }
+
+                for (let i = 0; i < resolvedParams.length; i++) {
+                    const rp: unknown = resolvedParams[i]
+                    if (
+                        rp &&
+                        rp !== UNDEFINED &&
+                        typeof (rp as Promise<unknown>).then === 'function'
+                    ) {
+                        try {
+                            syncContextFn && syncContextFn(classMeta)
+                            resolvedParams[i] = await (rp as Promise<unknown>)
+                        } catch (e) {
+                            const param = params[i]
+                            throw this.panic(
+                                classConstructor,
+                                e as Error,
+                                `Could not inject "${
+                                    (param.type as unknown as TFunction).name
+                                }" argument at index ${i}${
+                                    param.label ? ` (${param.label})` : ''
+                                }. An exception occurred.`,
+                                hierarchy,
+                            )
+                        }
+                    }
+                }
+
+                for (let i = 0; i < params.length; i++) {
+                    const param = params[i]
+                    if (typeof resolvedParams[i] === 'undefined') {
+                        if (param.type === undefined && !param.circular) {
+                            this.raiseEvent(
+                                'warn',
+                                classConstructor,
+                                `constructor() expects argument ${
+                                    param.label
+                                        ? `labeled as "${param.label}"`
+                                        : `#${i}`
+                                } that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`,
+                            )
+                        } else if (param.type === undefined && param.circular) {
+                            param.type = (
+                                param.circular as TFunction
+                            )() as TFunction
+                        }
+                        if (typeof param.type === 'function') {
+                            if (
+                                [String, Number, Date, Array].includes(
+                                    param.type as TAny,
+                                )
+                            ) {
+                                if (!param.nullable && !param.optional) {
+                                    throw this.panicOwnError(
+                                        classConstructor,
+                                        `Could not inject "${
+                                            (param.type as unknown as TFunction)
+                                                .name
+                                        }" argument at index ${i}${
+                                            param.label
+                                                ? ` (${param.label})`
+                                                : ''
+                                        }. The param was not resolved to a value.`,
                                         hierarchy,
-                                        provide,
-                                        replace,
-                                    })
+                                    )
+                                }
+                            }
+                            resolvedParams[i] = this.get(
+                                param.type as TClassConstructor<IT>,
+                                {
+                                    provide: param.provide
+                                        ? { ...mergedProvide, ...param.provide }
+                                        : mergedProvide,
+                                    replace,
+                                    hierarchy,
+                                    syncContextFn,
+                                    fromScope: param.fromScope,
+                                    customData: opts?.customData,
                                 },
-                            })
+                                param.optional || param.nullable,
+                            )
+                        }
+                    }
+                    if (resolvedParams[i] === UNDEFINED) {
+                        resolvedParams[i] = undefined
+                    }
+                }
+
+                for (let i = 0; i < resolvedParams.length; i++) {
+                    const rp: unknown = resolvedParams[i]
+                    if (
+                        rp &&
+                        typeof (rp as Promise<unknown>).then === 'function'
+                    ) {
+                        try {
+                            syncContextFn && syncContextFn(classMeta)
+                            resolvedParams[i] = await (rp as Promise<unknown>)
+                        } catch (e) {
+                            const param = params[i]
+                            throw this.panic(
+                                classConstructor,
+                                e as Error,
+                                `Could not inject "${
+                                    (param.type as unknown as TFunction).name
+                                }" argument at index ${i}${
+                                    param.label ? ` (${param.label})` : ''
+                                }. An exception occurred.`,
+                                hierarchy,
+                            )
+                        }
+                    }
+                }
+
+                const instance = new classConstructor(...(resolvedParams as []))
+                if (isCircular) {
+                    Object.defineProperties(
+                        registry[instanceKey] as TObject,
+                        Object.getOwnPropertyDescriptors(instance),
+                    )
+                }
+
+                // Resolving Props
+                if (
+                    this.options.describeProp &&
+                    this.options.resolveProp &&
+                    classMeta.properties &&
+                    classMeta.properties.length
+                ) {
+                    const resolvedProps: Record<
+                        string | symbol,
+                        Promise<unknown> | unknown
+                    > = {}
+                    for (const prop of classMeta.properties) {
+                        const initialValue = (
+                            instance as Record<string | symbol, unknown>
+                        )[prop]
+                        let propMeta: Prop | undefined
+                        try {
+                            propMeta = this.options.describeProp(
+                                classConstructor,
+                                prop,
+                            )
                         } catch (e) {
                             throw this.panic(
                                 classConstructor,
                                 e as Error,
-                                `Could not inject prop "${
-                                    prop as string
-                                }". An exception occured: ` +
+                                `Could not process prop "${prop as string}". An error occurred on "describeProp" function.\n${
+                                    (e as Error).message
+                                }`,
+                                hierarchy,
+                            )
+                        }
+                        if (propMeta) {
+                            try {
+                                resolvedProps[prop] = this.options.resolveProp({
+                                    classMeta,
+                                    classConstructor,
+                                    initialValue,
+                                    key: prop,
+                                    scopeId,
+                                    instance,
+                                    propMeta,
+                                    customData: opts?.customData,
+                                    instantiate: (c) => {
+                                        return this.get(c, {
+                                            customData: opts?.customData,
+                                            fromScope: opts?.fromScope,
+                                            syncContextFn,
+                                            hierarchy,
+                                            provide,
+                                            replace,
+                                        })
+                                    },
+                                })
+                            } catch (e) {
+                                throw this.panic(
+                                    classConstructor,
+                                    e as Error,
+                                    `Could not inject prop "${
+                                        prop as string
+                                    }". An exception occurred: ` +
+                                        (e as Error).message,
+                                    hierarchy,
+                                )
+                            }
+                        }
+                    }
+                    for (const [prop, value] of Object.entries(resolvedProps)) {
+                        try {
+                            syncContextFn && syncContextFn(classMeta)
+                            resolvedProps[prop] = value
+                                ? await (value as Promise<unknown>)
+                                : value
+                        } catch (e) {
+                            throw this.panic(
+                                classConstructor,
+                                e as Error,
+                                `Could not inject prop "${prop}". ` +
+                                    'An exception occurred: ' +
                                     (e as Error).message,
                                 hierarchy,
                             )
                         }
                     }
+                    Object.assign(instance as TObject, resolvedProps)
                 }
-                for (const [prop, value] of Object.entries(resolvedProps)) {
-                    try {
-                        syncContextFn && syncContextFn(classMeta)
-                        resolvedProps[prop] = value
-                            ? await (value as Promise<unknown>)
-                            : value
-                    } catch (e) {
-                        throw this.panic(
-                            classConstructor,
-                            e as Error,
-                            `Could not inject prop "${prop}". ` +
-                                'An exception occured: ' +
-                                (e as Error).message,
-                            hierarchy,
-                        )
-                    }
-                }
-                Object.assign(instance as TObject, resolvedProps)
-            }
 
-            this.raiseEvent(
-                'new-instance',
-                classConstructor,
-                '',
-                resolvedParams,
-            )
+                this.raiseEvent(
+                    'new-instance',
+                    classConstructor,
+                    '',
+                    resolvedParams,
+                )
+                if (!isCircular) {
+                    registry[instanceKey] = instance
+                }
+                resolveCreation?.(instance)
+            } catch (e) {
+                if (rejectCreation) {
+                    delete registry[instanceKey]
+                    rejectCreation(e)
+                }
+                throw e
+            }
         }
         hierarchy.pop()
         syncContextFn && syncContextFn(classMeta)
+        const resolved =
+            scope[instanceKey] ||
+            this.registry[instanceKey] ||
+            globalRegistry[instanceKey]
         return {
-            instance: await ((scope[instanceKey] ||
-                this.registry[instanceKey] ||
-                globalRegistry[instanceKey]) as Promise<IT>),
+            instance:
+                resolved &&
+                typeof (resolved as Promise<unknown>).then === 'function'
+                    ? await (resolved as Promise<IT>)
+                    : (resolved as IT),
             mergedProvide,
             replace,
         }
@@ -548,10 +603,7 @@ export function createProvideRegistry(
     const provide: TProvideRegistry = {}
     for (const a of args) {
         const [type, fn] = a
-        const key =
-            typeof type === 'string'
-                ? type
-                : Symbol.for(type as unknown as string)
+        const key = typeof type === 'string' ? type : classSymbol(type)
         provide[key] = {
             fn,
             resolved: false,
@@ -565,7 +617,7 @@ export function createReplaceRegistry(
     const replace: TReplaceRegistry = {}
     for (const a of args) {
         const [type, newType] = a
-        const key = Symbol.for(type as unknown as string)
+        const key = classSymbol(type)
         replace[key] = newType
     }
     return replace

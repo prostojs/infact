@@ -50,3 +50,45 @@ export class OptionalInject {
 export class RequiredInject {
     constructor(public data: string) {}
 }
+
+// For race condition test
+export class SimpleDep {
+    id = Math.random()
+}
+export class ServiceWithDep {
+    constructor(public dep: SimpleDep) {}
+}
+
+// For replace test
+export class OriginalService {
+    type = 'original'
+}
+export class ReplacementService extends OriginalService {
+    type = 'replacement'
+}
+
+// For global test
+export class GlobalService {
+    id = Math.random()
+}
+
+// For scope test
+export class ScopedService {
+    id = Math.random()
+}
+
+// For circular Object.assign test (non-enumerable property)
+export class CircularNonEnum {
+    hidden!: number
+    constructor(public other: CircularNonEnumDep) {
+        Object.defineProperty(this, 'hidden', {
+            value: 42,
+            enumerable: false,
+            writable: true,
+            configurable: true,
+        })
+    }
+}
+export class CircularNonEnumDep {
+    constructor(public ref: CircularNonEnum) {}
+}

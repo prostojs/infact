@@ -2,6 +2,7 @@ import {
     Infact,
     TInfactClassMeta,
     createProvideRegistry,
+    createReplaceRegistry,
     TInfactOptions,
 } from '..'
 import { CircularTestClass1 } from './circular1.artifacts'
@@ -15,6 +16,14 @@ import {
     WithProps,
     OptionalInject,
     RequiredInject,
+    SimpleDep,
+    ServiceWithDep,
+    OriginalService,
+    ReplacementService,
+    GlobalService,
+    ScopedService,
+    CircularNonEnum,
+    CircularNonEnumDep,
 } from './infact.artifacts'
 
 function symbol(v: unknown) {
@@ -109,6 +118,43 @@ const meta: Record<
         injectable: true,
         constructorParams: [
             { type: String, inject: 'required-inject', nullable: false },
+        ],
+    },
+    [symbol(SimpleDep)]: {
+        injectable: true,
+        constructorParams: [],
+    },
+    [symbol(ServiceWithDep)]: {
+        injectable: true,
+        constructorParams: [{ type: SimpleDep }],
+    },
+    [symbol(OriginalService)]: {
+        injectable: true,
+        constructorParams: [],
+    },
+    [symbol(ReplacementService)]: {
+        injectable: true,
+        constructorParams: [],
+    },
+    [symbol(GlobalService)]: {
+        injectable: true,
+        global: true,
+        constructorParams: [],
+    },
+    [symbol(ScopedService)]: {
+        injectable: true,
+        constructorParams: [],
+    },
+    [symbol(CircularNonEnum)]: {
+        injectable: true,
+        constructorParams: [
+            { type: undefined, circular: () => CircularNonEnumDep },
+        ],
+    },
+    [symbol(CircularNonEnumDep)]: {
+        injectable: true,
+        constructorParams: [
+            { type: undefined, circular: () => CircularNonEnum },
         ],
     },
 }
@@ -221,5 +267,254 @@ describe('infact', () => {
         ).rejects.toMatchInlineSnapshot(
             '[Error: Could not inject "required-inject" argument with index 0]',
         )
+    })
+})
+
+describe('race condition: concurrent get() calls', () => {
+    it('should return the same instance for concurrent get() calls', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        const [a, b] = await Promise.all([
+            freshInfact.get(ServiceWithDep),
+            freshInfact.get(ServiceWithDep),
+        ])
+        expect(a).toBe(b)
+    })
+
+    it('should return the same dep instance for concurrent get() calls', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        const [a, b] = await Promise.all([
+            freshInfact.get(ServiceWithDep),
+            freshInfact.get(ServiceWithDep),
+        ])
+        expect(a.dep).toBe(b.dep)
+    })
+})
+
+describe('circular deps: Object.assign limitations', () => {
+    it('should preserve non-enumerable properties on circular instances', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        const instance = await freshInfact.get(CircularNonEnum)
+        // Object.assign only copies enumerable own properties.
+        // The 'hidden' property is defined as non-enumerable in the constructor.
+        // If the circular dep shell is filled via Object.assign, this will be undefined.
+        expect(instance.hidden).toBe(42)
+    })
+})
+
+describe('scopes', () => {
+    it('must create scoped instances isolated from instance registry', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        const scopeId = 'test-scope'
+        freshInfact.registerScope(scopeId)
+
+        // Resolve without scope — goes into instance registry
+        const global1 = await freshInfact.get(ScopedService)
+
+        // Resolve with fromScope — should create a NEW instance in the scope
+        const scoped1 = await freshInfact.get(ScopedService, {
+            fromScope: scopeId,
+        })
+
+        expect(scoped1).not.toBe(global1)
+        expect(scoped1).toBeInstanceOf(ScopedService)
+    })
+
+    it('must return the same scoped instance on repeated resolution', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        const scopeId = 'test-scope-2'
+        freshInfact.registerScope(scopeId)
+
+        const a = await freshInfact.get(ScopedService, {
+            fromScope: scopeId,
+        })
+        const b = await freshInfact.get(ScopedService, {
+            fromScope: scopeId,
+        })
+
+        expect(a).toBe(b)
+    })
+
+    it('must isolate instances between different scopes', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        freshInfact.registerScope('scope-a')
+        freshInfact.registerScope('scope-b')
+
+        const a = await freshInfact.get(ScopedService, {
+            fromScope: 'scope-a',
+        })
+        const b = await freshInfact.get(ScopedService, {
+            fromScope: 'scope-b',
+        })
+
+        expect(a).not.toBe(b)
+    })
+
+    it('must throw when resolving from unregistered scope', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        await expect(
+            freshInfact.get(ScopedService, { fromScope: 'nonexistent' }),
+        ).rejects.toThrow("isn't registered")
+    })
+
+    it('must discard scoped instances on unregisterScope', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        const scopeId = 'disposable-scope'
+        freshInfact.registerScope(scopeId)
+
+        const before = await freshInfact.get(ScopedService, {
+            fromScope: scopeId,
+        })
+
+        freshInfact.unregisterScope(scopeId)
+        freshInfact.registerScope(scopeId)
+
+        const after = await freshInfact.get(ScopedService, {
+            fromScope: scopeId,
+        })
+
+        expect(before).not.toBe(after)
+    })
+
+    it('must throw when class has both scopeId and global', async () => {
+        const scopedGlobalMeta = {
+            ...meta,
+            [symbol(GlobalService)]: {
+                injectable: true,
+                global: true,
+                scopeId: 'some-scope',
+                constructorParams: [],
+            },
+        }
+        const freshInfact = new Infact<TMeta>({
+            ...options,
+            describeClass: (c) => scopedGlobalMeta[symbol(c)],
+        })
+        freshInfact.registerScope('some-scope')
+        await expect(freshInfact.get(GlobalService)).rejects.toThrow(
+            'scoped Injectable is not supported for Global scope',
+        )
+    })
+})
+
+describe('replace registry', () => {
+    it('must substitute class via replace registry', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        const replace = createReplaceRegistry([
+            OriginalService,
+            ReplacementService,
+        ])
+
+        const instance = await freshInfact.get(OriginalService, { replace })
+
+        expect(instance).toBeInstanceOf(ReplacementService)
+        expect((instance as ReplacementService).type).toBe('replacement')
+    })
+
+    it('must use same replacement instance as singleton', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        const replace = createReplaceRegistry([
+            OriginalService,
+            ReplacementService,
+        ])
+
+        const a = await freshInfact.get(OriginalService, { replace })
+        const b = await freshInfact.get(OriginalService, { replace })
+
+        expect(a).toBe(b)
+    })
+})
+
+describe('global instances', () => {
+    it('must share global instances across Infact instances', async () => {
+        const infactA = new Infact<TMeta>(options)
+        const infactB = new Infact<TMeta>(options)
+
+        const a = await infactA.get(GlobalService)
+        const b = await infactB.get(GlobalService)
+
+        expect(a).toBe(b)
+    })
+})
+
+describe('_cleanup', () => {
+    it('must reset instance registry so new instances are created', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+
+        const before = await freshInfact.get(SimpleDep)
+        freshInfact._cleanup()
+        const after = await freshInfact.get(SimpleDep)
+
+        expect(before).not.toBe(after)
+    })
+
+    it('must reset scopes', async () => {
+        const freshInfact = new Infact<TMeta>(options)
+        freshInfact.registerScope('s')
+        await freshInfact.get(ScopedService, { fromScope: 's' })
+
+        freshInfact._cleanup()
+
+        // Scope no longer exists after cleanup
+        await expect(
+            freshInfact.get(ScopedService, { fromScope: 's' }),
+        ).rejects.toThrow("isn't registered")
+    })
+})
+
+describe('error paths', () => {
+    it('must throw for non-injectable, non-optional class', async () => {
+        class NotInjectable {}
+        const noMeta = {
+            [symbol(NotInjectable)]: {
+                injectable: false,
+                constructorParams: [],
+            },
+        }
+        const freshInfact = new Infact<TMeta>({
+            ...options,
+            describeClass: (c) =>
+                (noMeta as Record<symbol, TInfactClassMeta<Empty> & TMeta>)[
+                    symbol(c)
+                ],
+        })
+        await expect(freshInfact.get(NotInjectable)).rejects.toThrow(
+            'Class is not Injectable and not Optional',
+        )
+    })
+
+    it('must throw when describeClass throws', async () => {
+        class BadClass {}
+        const freshInfact = new Infact<TMeta>({
+            ...options,
+            describeClass: () => {
+                throw new Error('metadata failure')
+            },
+        })
+        await expect(freshInfact.get(BadClass)).rejects.toThrow(
+            'metadata failure',
+        )
+    })
+
+    it('must invoke on() callback for error events', async () => {
+        class NotInjectable2 {}
+        const events: string[] = []
+        const noMeta = {
+            [symbol(NotInjectable2)]: {
+                injectable: false,
+                constructorParams: [],
+            },
+        }
+        const freshInfact = new Infact<TMeta>({
+            ...options,
+            describeClass: (c) =>
+                (noMeta as Record<symbol, TInfactClassMeta<Empty> & TMeta>)[
+                    symbol(c)
+                ],
+            on(event) {
+                events.push(event)
+            },
+        })
+        await expect(freshInfact.get(NotInjectable2)).rejects.toThrow()
+        expect(events).toContain('error')
     })
 })

@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 pnpm test          # run tests
 pnpm test:cov      # run tests with coverage
-pnpm build         # rollup → dist/ (ESM, CJS, .d.ts)
+pnpm build         # tsc + rolldown → dist/ (ESM, CJS, .d.ts)
 pnpm lint          # oxlint (linter)
 pnpm lint:fix      # oxlint --fix
 pnpm fmt           # oxfmt (formatter)
@@ -48,11 +48,13 @@ The entire library lives in a single source file: `src/infact.ts` (~640 lines). 
 
 ## Build System
 
-Rollup produces three outputs from `src/index.ts`:
+Rolldown (`rolldown.config.mjs`) produces three outputs from `src/index.ts`:
 
 - `dist/index.mjs` (ESM), `dist/index.cjs` (CJS), `dist/index.d.ts` (declarations)
 
-Compile-time replacements: `process.env.NODE_ENV` → `"production"`, all `__DYE_*__` color constants inlined as ANSI strings (no runtime `@prostojs/dye` dependency in output). Vitest config mirrors these globals for tests.
+The build pipeline is: `tsc -p tsconfig.build.json` emits individual `.d.ts` files to `dts-build/`, then Rolldown bundles ESM + CJS and uses `rolldown-plugin-dts` (with `dtsInput: true`) to bundle the `.d.ts` files into a single `dist/index.d.ts`. The `dts-build/` directory is cleaned up after build.
+
+Compile-time replacements via Rolldown's `define` option: `process.env.NODE_ENV` → `"production"`, all `__DYE_*__` color constants inlined as ANSI strings (no runtime `@prostojs/dye` dependency in output). Vitest config mirrors these globals for tests.
 
 ## Code Style
 

@@ -23,6 +23,11 @@
         "experimentalDecorators": true,
         "types": ["vitest/globals", "node"]
     },
-    "include": ["src/*", "src/**/*", "**/*.spec.ts", "node_modules/@prostojs/dye/global.d.ts"],
+    "include": [
+        "src/*",
+        "src/**/*",
+        "**/*.spec.ts",
+        "node_modules/@prostojs/dye/global.d.ts"
+    ],
     "exclude": ["node_modules", "explorations", "scripts"]
 }
