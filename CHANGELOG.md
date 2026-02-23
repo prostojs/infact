@@ -1,3 +1,12 @@
+# [0.4.0](https://github.com/prostojs/infact/compare/v0.3.6...v0.4.0) (2026-02-23)
+
+
+### Performance Improvements
+
+* optimize performance ([b6290ec](https://github.com/prostojs/infact/commit/b6290ec62974b419e3ea5bb4dab53bf38a25b1c1))
+
+
+
 ## [0.3.6](https://github.com/prostojs/infact/compare/v0.3.5...v0.3.6) (2025-06-26)
 
 

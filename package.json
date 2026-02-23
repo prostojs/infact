@@ -1,6 +1,6 @@
 {
     "name": "@prostojs/infact",
-    "version": "0.3.6",
+    "version": "0.4.0",
     "description": "Instance Factory and Instance Registry for Metadata based Dependency Injection scenarios",
     "keywords": [
         "dependency injection",
