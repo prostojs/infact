@@ -1,9 +1,6 @@
-const typescript = require('rollup-plugin-typescript2')
-const replace = require('@rollup/plugin-replace')
-const { dye } = require('@prostojs/dye')
-const { nodeResolve } = require('@rollup/plugin-node-resolve')
-const commonJS = require('@rollup/plugin-commonjs')
-const { dts } = require('rollup-plugin-dts')
+import { defineConfig } from 'rolldown'
+import { dts } from 'rolldown-plugin-dts'
+import { dye } from '@prostojs/dye'
 
 const dyeModifiers = [
     'dim',
@@ -29,70 +26,46 @@ const dyeColors = [
 
 const external = ['url', 'crypto', 'stream', 'packages/*/src', 'http', 'path']
 
-const replacePlugin = replace({
-    values: {
-        'process.env.NODE_ENV': JSON.stringify('production'),
-        ...createDyeReplaceConst(),
-    },
-    preventAssignment: true,
-})
-
-const configs = [createConfig('mjs'), createConfig('cjs'), createDtsConfig()]
+const dyeDefines = createDyeReplaceConst()
 
 function createConfig(type) {
     const formats = {
         cjs: 'cjs',
         mjs: 'es',
     }
-    return {
+    return defineConfig({
         external,
-        input: `./src/index.ts`,
+        input: './src/index.ts',
         output: {
             file: `./dist/index.${type}`,
             format: formats[type],
             sourcemap: false,
         },
-        plugins: [
-            commonJS({ sourceMap: false }),
-            nodeResolve(),
-            typescript({
-                check: true,
-                tsconfig: 'tsconfig.json',
-                tsconfigOverride: {
-                    target: 'es2020',
-                    declaration: false,
-                    declarationMap: false,
-                    removeComments: true,
-                    include: ['src'],
-                    exclude: ['**/__tests__', '*.spec.ts', 'explorations'],
-                },
-            }),
-            replacePlugin,
-        ],
-    }
+        define: {
+            'process.env.NODE_ENV': JSON.stringify('production'),
+            ...dyeDefines,
+        },
+    })
 }
 
 function createDtsConfig() {
-    return {
+    return defineConfig({
         external,
-        input: `./src/index.ts`,
+        input: './dts-build/index.d.ts',
+        plugins: [
+            dts({
+                dtsInput: true,
+            }),
+        ],
         output: {
-            file: `./dist/index.d.ts`,
+            file: './dist/index.d.ts',
             format: 'es',
             sourcemap: false,
         },
-        plugins: [
-            dts({
-                tsconfig: 'tsconfig.json',
-                compilerOptions: {
-                    removeComments: false,
-                },
-            }),
-        ],
-    }
+    })
 }
 
-module.exports = configs
+export default [createConfig('mjs'), createConfig('cjs'), createDtsConfig()]
 
 function createDyeReplaceConst() {
     const c = dye('red')
