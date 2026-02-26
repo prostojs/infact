@@ -1,3 +1,12 @@
+## [0.4.1](https://github.com/prostojs/infact/compare/v0.4.0...v0.4.1) (2026-02-26)
+
+
+### Performance Improvements
+
+* optimize scope id to map ([3fc0522](https://github.com/prostojs/infact/commit/3fc05221386c8be7c742ba3ed6d5c83ef5bb660c))
+
+
+
 # [0.4.0](https://github.com/prostojs/infact/compare/v0.3.6...v0.4.0) (2026-02-23)
 
 
