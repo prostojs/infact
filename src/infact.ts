@@ -45,7 +45,7 @@ export class Infact<
         }
     > = new WeakMap()
 
-    protected scopes: Record<string | symbol, TRegistry> = {}
+    protected scopes = new Map<string | symbol, TRegistry>()
 
     constructor(
         protected options: TInfactOptions<Class, Prop, Param, Custom>,
@@ -59,7 +59,7 @@ export class Infact<
     public _cleanup() {
         this.registry = {}
         this.instanceRegistries = new WeakMap()
-        this.scopes = {}
+        this.scopes.clear()
     }
 
     /**
@@ -87,13 +87,13 @@ export class Infact<
     }
 
     public registerScope(scopeId: string | symbol) {
-        if (!this.scopes[scopeId]) {
-            this.scopes[scopeId] = {}
+        if (!this.scopes.has(scopeId)) {
+            this.scopes.set(scopeId, {})
         }
     }
 
     public unregisterScope(scopeId: string | symbol) {
-        delete this.scopes[scopeId]
+        this.scopes.delete(scopeId)
     }
 
     public getForInstance<IT extends TObject>(
@@ -230,14 +230,14 @@ export class Infact<
                 hierarchy,
             )
         }
-        if (scopeId && !this.scopes[scopeId]) {
+        if (scopeId && !this.scopes.has(scopeId)) {
             throw this.panicOwnError(
                 classConstructor,
                 `The requested scope "${scopeId as string}" isn't registered.`,
                 hierarchy,
             )
         }
-        const scope = scopeId ? this.scopes[scopeId] : ({} as TRegistry)
+        const scope = scopeId ? this.scopes.get(scopeId)! : ({} as TRegistry)
         const classProvide = classMeta.provide
         const mergedProvide = classProvide
             ? { ...(provide || {}), ...classProvide }
