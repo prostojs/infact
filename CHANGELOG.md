@@ -1,3 +1,12 @@
+# [0.5.0](https://github.com/prostojs/infact/compare/v0.4.1...v0.5.0) (2026-07-16)
+
+
+### Features
+
+* structured error detail, duplicate-copy warning, resolver-aware provide factories ([12c5c26](https://github.com/prostojs/infact/commit/12c5c26ff4d764fe43195bf6979426c7edf76fab))
+
+
+
 ## [0.4.1](https://github.com/prostojs/infact/compare/v0.4.0...v0.4.1) (2026-02-26)
 
 
