@@ -1,3 +1,9 @@
+// mirrors the internal `classSymbol` keying: Symbol.for coerces
+// a class to its source text, so specs and container agree on keys
+export function symbol(v: unknown) {
+    return Symbol.for(v as string)
+}
+
 export class ProviderTestClass1 {
     constructor(public config: string) {}
 }
@@ -75,6 +81,15 @@ export class GlobalService {
 // For scope test
 export class ScopedService {
     id = Math.random()
+}
+
+// For structured error detail tests
+export class NotInjectableDep {}
+export class ConsumerOfNotInjectable {
+    constructor(public dep: NotInjectableDep) {}
+}
+export class ConsumerOfObjectParam {
+    constructor(public dep: object) {}
 }
 
 // For circular Object.assign test (non-enumerable property)

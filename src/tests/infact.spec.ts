@@ -1,6 +1,7 @@
 import {
     Infact,
     TInfactClassMeta,
+    TInfactEventDetail,
     createProvideRegistry,
     createReplaceRegistry,
     TInfactOptions,
@@ -22,13 +23,13 @@ import {
     ReplacementService,
     GlobalService,
     ScopedService,
+    NotInjectableDep,
+    ConsumerOfNotInjectable,
+    ConsumerOfObjectParam,
     CircularNonEnum,
     CircularNonEnumDep,
+    symbol,
 } from './infact.artifacts'
-
-function symbol(v: unknown) {
-    return Symbol.for(v as string)
-}
 
 interface Empty {}
 
@@ -144,6 +145,15 @@ const meta: Record<
     [symbol(ScopedService)]: {
         injectable: true,
         constructorParams: [],
+    },
+    // NotInjectableDep intentionally has no meta entry
+    [symbol(ConsumerOfNotInjectable)]: {
+        injectable: true,
+        constructorParams: [{ type: NotInjectableDep }],
+    },
+    [symbol(ConsumerOfObjectParam)]: {
+        injectable: true,
+        constructorParams: [{ type: Object }],
     },
     [symbol(CircularNonEnum)]: {
         injectable: true,
@@ -495,6 +505,26 @@ describe('error paths', () => {
         )
     })
 
+    it('must support legacy 4-arg on() handlers', async () => {
+        const events: { event: string; message: string; args?: unknown[] }[] =
+            []
+        const freshInfact = new Infact<TMeta>({
+            ...options,
+            on(event, _targetClass, message, args) {
+                events.push({ event, message, args })
+            },
+        })
+        await expect(freshInfact.get(RequiredInject)).rejects.toThrow(
+            'Could not inject',
+        )
+        expect(events).toHaveLength(1)
+        expect(events[0].event).toBe('error')
+        expect(events[0].message).toBe(
+            'Could not inject "required-inject" argument with index 0',
+        )
+        expect(events[0].args).toEqual(['RequiredInject'])
+    })
+
     it('must invoke on() callback for error events', async () => {
         class NotInjectable2 {}
         const events: string[] = []
@@ -516,5 +546,79 @@ describe('error paths', () => {
         })
         await expect(freshInfact.get(NotInjectable2)).rejects.toThrow()
         expect(events).toContain('error')
+    })
+})
+
+describe('structured error detail (TInfactEventDetail)', () => {
+    function collectErrors() {
+        const messages: string[] = []
+        const details: (TInfactEventDetail | undefined)[] = []
+        const freshInfact = new Infact<TMeta>({
+            ...options,
+            on(event, _targetClass, message, _args, detail) {
+                if (event === 'error') {
+                    messages.push(message)
+                    details.push(detail)
+                }
+            },
+        })
+        return { freshInfact, messages, details }
+    }
+
+    it('must pass detail for unresolved @Inject token', async () => {
+        const { freshInfact, messages, details } = collectErrors()
+        await expect(freshInfact.get(RequiredInject)).rejects.toThrow(
+            'Could not inject "required-inject" argument with index 0',
+        )
+        expect(messages).toHaveLength(1)
+        expect(details[0]).toEqual({
+            injectToken: 'required-inject',
+            paramIndex: 0,
+            paramLabel: undefined,
+            hierarchy: ['RequiredInject'],
+        })
+    })
+
+    it('must pass detail for a not-injectable dependency', async () => {
+        const { freshInfact, messages, details } = collectErrors()
+        await expect(freshInfact.get(ConsumerOfNotInjectable)).rejects.toThrow(
+            'Class is not Injectable and not Optional.',
+        )
+        // inner event: the dependency itself
+        expect(messages[0]).toBe('Class is not Injectable and not Optional.')
+        expect(details[0]).toEqual({
+            hierarchy: ['ConsumerOfNotInjectable', 'NotInjectableDep'],
+        })
+        // outer event: consumer context
+        expect(messages[1]).toBe(
+            'Could not inject "NotInjectableDep" argument at index 0. An exception occurred.',
+        )
+        expect(messages[1]).not.toContain('Hint:')
+        expect(details[1]).toEqual({
+            paramIndex: 0,
+            paramLabel: undefined,
+            paramTypeName: 'NotInjectableDep',
+            hierarchy: ['ConsumerOfNotInjectable', 'NotInjectableDep'],
+        })
+    })
+
+    it('must append import-type hint when dependency type is Object', async () => {
+        const { freshInfact, messages, details } = collectErrors()
+        await expect(freshInfact.get(ConsumerOfObjectParam)).rejects.toThrow(
+            'Hint: the dependency\'s class may have been imported with "import type" (TypeScript erases it, emitting Object).',
+        )
+        expect(messages[0]).toBe(
+            'Class is not Injectable and not Optional.' +
+                ' Hint: the dependency\'s class may have been imported with "import type" (TypeScript erases it, emitting Object).',
+        )
+        expect(messages[1]).toContain(
+            'Could not inject "Object" argument at index 0. An exception occurred. Hint:',
+        )
+        expect(details[1]).toEqual({
+            paramIndex: 0,
+            paramLabel: undefined,
+            paramTypeName: 'Object',
+            hierarchy: ['ConsumerOfObjectParam', 'Object'],
+        })
     })
 })

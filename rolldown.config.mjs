@@ -1,6 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'rolldown'
 import { dts } from 'rolldown-plugin-dts'
 import { dye } from '@prostojs/dye'
+
+const pkg = JSON.parse(
+    readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+)
 
 const dyeModifiers = [
     'dim',
@@ -41,9 +46,12 @@ function createConfig(type) {
             format: formats[type],
             sourcemap: false,
         },
-        define: {
-            'process.env.NODE_ENV': JSON.stringify('production'),
-            ...dyeDefines,
+        transform: {
+            define: {
+                'process.env.NODE_ENV': JSON.stringify('production'),
+                __VERSION__: JSON.stringify(pkg.version),
+                ...dyeDefines,
+            },
         },
     })
 }

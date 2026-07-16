@@ -1,3 +1,4 @@
+import { stampOnce } from './module-identity'
 import { TAny, TClassConstructor, TFunction, TObject } from './types'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
@@ -28,6 +29,13 @@ export interface TInfactGetOptions<T extends TObject = TAny> {
 
 const UNDEFINED = Symbol('undefined')
 
+const IMPORT_TYPE_HINT =
+    ' Hint: the dependency\'s class may have been imported with "import type" (TypeScript erases it, emitting Object).'
+
+function importTypeHint(type: unknown): string {
+    return type === Object ? IMPORT_TYPE_HINT : ''
+}
+
 export class Infact<
     Class extends TObject = TEmpty,
     Prop extends TObject = TEmpty,
@@ -49,7 +57,9 @@ export class Infact<
 
     constructor(
         protected options: TInfactOptions<Class, Prop, Param, Custom>,
-    ) {}
+    ) {
+        stampOnce()
+    }
 
     /**
      * Cleanup function to reset registry
@@ -80,9 +90,10 @@ export class Infact<
         targetClass: Function,
         message: string,
         args?: unknown[],
+        detail?: TInfactEventDetail,
     ) {
         if (this.options.on) {
-            this.options.on(event, targetClass, message, args)
+            this.options.on(event, targetClass, message, args, detail)
         }
     }
 
@@ -194,6 +205,7 @@ export class Infact<
                 return {
                     instance: await (getProvidedValue(
                         provide[instanceKey],
+                        provide,
                     ) as Promise<IT>),
                     mergedProvide: provide,
                     replace,
@@ -202,7 +214,9 @@ export class Infact<
             if (!optional) {
                 throw this.panicOwnError(
                     classConstructor,
-                    'Class is not Injectable and not Optional.',
+                    `Class is not Injectable and not Optional.${importTypeHint(
+                        classConstructor,
+                    )}`,
                     hierarchy,
                 )
             } else {
@@ -247,6 +261,7 @@ export class Infact<
             return {
                 instance: await (getProvidedValue(
                     mergedProvide[instanceKey],
+                    mergedProvide,
                 ) as Promise<IT>),
                 mergedProvide,
                 replace,
@@ -288,6 +303,7 @@ export class Infact<
                         if (mergedProvide && mergedProvide[param.inject]) {
                             resolvedParams[i] = getProvidedValue(
                                 mergedProvide[param.inject],
+                                mergedProvide,
                             )
                         } else if (param.nullable || param.optional) {
                             resolvedParams[i] = UNDEFINED
@@ -303,6 +319,11 @@ export class Infact<
                                         : `with index ${i}`
                                 }`,
                                 hierarchy,
+                                {
+                                    injectToken: param.inject,
+                                    paramIndex: i,
+                                    paramLabel: param.label,
+                                },
                             )
                         }
                     } else if (this.options.resolveParam) {
@@ -338,15 +359,11 @@ export class Infact<
                             syncContextFn && syncContextFn(classMeta)
                             resolvedParams[i] = await (rp as Promise<unknown>)
                         } catch (e) {
-                            const param = params[i]
-                            throw this.panic(
+                            throw this.panicParamException(
                                 classConstructor,
                                 e as Error,
-                                `Could not inject "${
-                                    (param.type as unknown as TFunction).name
-                                }" argument at index ${i}${
-                                    param.label ? ` (${param.label})` : ''
-                                }. An exception occurred.`,
+                                params[i],
+                                i,
                                 hierarchy,
                             )
                         }
@@ -423,15 +440,11 @@ export class Infact<
                             syncContextFn && syncContextFn(classMeta)
                             resolvedParams[i] = await (rp as Promise<unknown>)
                         } catch (e) {
-                            const param = params[i]
-                            throw this.panic(
+                            throw this.panicParamException(
                                 classConstructor,
                                 e as Error,
-                                `Could not inject "${
-                                    (param.type as unknown as TFunction).name
-                                }" argument at index ${i}${
-                                    param.label ? ` (${param.label})` : ''
-                                }. An exception occurred.`,
+                                params[i],
+                                i,
                                 hierarchy,
                             )
                         }
@@ -573,8 +586,13 @@ export class Infact<
         origError: Error,
         text: string,
         hierarchy?: string[],
+        detail?: TInfactEventDetail,
     ) {
-        this.raiseEvent('error', targetClass, text, hierarchy)
+        if (hierarchy) {
+            // snapshot here — the live array is mutated on unwind
+            detail = { ...detail, hierarchy: [...hierarchy] }
+        }
+        this.raiseEvent('error', targetClass, text, hierarchy, detail)
         return origError
     }
 
@@ -583,16 +601,105 @@ export class Infact<
         targetClass: Function,
         text: string,
         hierarchy?: string[],
+        detail?: TInfactEventDetail,
     ) {
         const e = new Error(text)
-        return this.panic(targetClass, e, text, hierarchy)
+        return this.panic(targetClass, e, text, hierarchy, detail)
+    }
+
+    private panicParamException(
+        // eslint-disable-next-line @typescript-eslint/ban-types
+        classConstructor: Function,
+        error: Error,
+        param: TInfactConstructorParamMeta,
+        index: number,
+        hierarchy: string[],
+    ) {
+        const typeName = (param.type as unknown as TFunction).name
+        return this.panic(
+            classConstructor,
+            error,
+            `Could not inject "${typeName}" argument at index ${index}${
+                param.label ? ` (${param.label})` : ''
+            }. An exception occurred.${importTypeHint(param.type)}`,
+            hierarchy,
+            {
+                paramIndex: index,
+                paramLabel: param.label,
+                paramTypeName: typeName,
+            },
+        )
     }
 }
 
-function getProvidedValue(meta: TProvideMeta) {
+interface TProvideResolutionFrame {
+    key: string | symbol
+    token: string | symbol | TClassConstructor<TAny>
+}
+
+function provideTokenName(
+    token: string | symbol | TClassConstructor<TAny>,
+): string {
+    if (typeof token === 'function') {
+        return token.name || '[anonymous class]'
+    }
+    return typeof token === 'symbol'
+        ? token.description || token.toString()
+        : token
+}
+
+function circularProvideError(chain: TProvideResolutionFrame[]) {
+    return new Error(
+        `Circular provide-factory resolution detected: ${chain
+            .map((frame) => provideTokenName(frame.token))
+            .join(' → ')}`,
+    )
+}
+
+function createProvideResolver(
+    registry: TProvideRegistry,
+    stack: TProvideResolutionFrame[],
+): TProvideResolver {
+    return (token) => {
+        const frame: TProvideResolutionFrame = {
+            key: typeof token === 'function' ? classSymbol(token) : token,
+            token,
+        }
+        const cycleStart = stack.findIndex((f) => f.key === frame.key)
+        if (cycleStart >= 0) {
+            throw circularProvideError([...stack.slice(cycleStart), frame])
+        }
+        const meta = registry[frame.key]
+        if (!meta) {
+            throw new Error(
+                `Provide factory could not resolve token "${provideTokenName(
+                    token,
+                )}": token is not in the provide registry.`,
+            )
+        }
+        if (meta.resolving) {
+            // the cycle closes through a token whose factory was entered
+            // outside of the resolver chain (the top-level provided token),
+            // so it is not on the stack — prepend it to show the loop
+            throw circularProvideError([frame, ...stack, frame])
+        }
+        return getProvidedValue(meta, registry, [...stack, frame])
+    }
+}
+
+function getProvidedValue(
+    meta: TProvideMeta,
+    registry: TProvideRegistry,
+    stack?: TProvideResolutionFrame[],
+) {
     if (!meta.resolved) {
         meta.resolved = true
-        meta.value = meta.fn()
+        meta.resolving = true
+        try {
+            meta.value = meta.fn(createProvideResolver(registry, stack ?? []))
+        } finally {
+            meta.resolving = false
+        }
     }
     return meta.value
 }
@@ -672,7 +779,16 @@ export interface TInfactOptions<
         targetClass: Function,
         message: string,
         args?: unknown[],
+        detail?: TInfactEventDetail,
     ) => void
+}
+
+export interface TInfactEventDetail {
+    paramIndex?: number
+    paramLabel?: string
+    paramTypeName?: string
+    injectToken?: string | symbol
+    hierarchy?: string[]
 }
 
 export interface TInfactClassMeta<Param extends TObject = TEmpty> {
@@ -699,8 +815,28 @@ interface TProvideMeta {
     fn: TProvideFn
     resolved?: boolean
     value?: unknown
+    /** true while `fn` is running — used for circular resolution detection */
+    resolving?: boolean
 }
 
 export type TProvideRegistry = Record<string | symbol, TProvideMeta>
 export type TReplaceRegistry = Record<symbol, TClassConstructor<TAny>>
-export type TProvideFn = () => TAny
+
+/**
+ * Resolver passed into provide factories.
+ *
+ * Accepts a class constructor, a string or a symbol token and returns the
+ * value produced by that token's provide factory within the same provide
+ * registry (factories may chain). The value is returned as-is: if the
+ * target factory returns a Promise, the resolver returns that Promise —
+ * no awaiting happens inside — so `await` it in your factory if you need
+ * the settled value.
+ *
+ * Throws if the token is not present in the provide registry or if a
+ * circular provide-factory resolution is detected.
+ */
+export type TProvideResolver = (
+    token: string | symbol | TClassConstructor<TAny>,
+) => unknown
+
+export type TProvideFn = (resolve?: TProvideResolver) => TAny
