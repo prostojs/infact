@@ -1,3 +1,12 @@
+## [0.5.1](https://github.com/prostojs/infact/compare/v0.5.0...v0.5.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* scope provide-factory memo to the container; retry factories that throw or reject ([ae47cc1](https://github.com/prostojs/infact/commit/ae47cc10160733820c36b7471f036d69fcfe9c51))
+
+
+
 # [0.5.0](https://github.com/prostojs/infact/compare/v0.4.1...v0.5.0) (2026-07-16)
 
 
