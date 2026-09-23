@@ -124,8 +124,8 @@ describe('resolver-aware provide factories', () => {
             'MAIN',
             (resolve) => resolve!('MAIN'),
         ])
-        // the top-level factory is in-flight (`resolved` is set before `fn()`
-        // runs), so re-entry is caught by the explicit in-flight marker
+        // the top-level factory is in-flight (its memo entry is set before
+        // `fn()` runs), so re-entry is caught by the explicit in-flight marker
         await expect(
             newInfact().get(TokenConsumer, { provide }),
         ).rejects.toThrow(
@@ -177,5 +177,133 @@ describe('resolver-aware provide factories', () => {
         expect(sawPromise).toBe(true)
         // the injection call site awaits the value before injecting
         expect(c.value).toBe('async-value')
+    })
+})
+
+describe('provide memo is scoped to the container', () => {
+    class ClassLevelConsumer {
+        constructor(public value: unknown) {}
+    }
+
+    let current: string
+    let calls: number
+    // class-level provide entry: created once at "decoration" time and handed
+    // back by describeClass to every container, like a host framework does
+    let classMeta: TInfactClassMeta
+
+    function newClassLevelInfact() {
+        return new Infact({
+            describeClass: (c) =>
+                c === ClassLevelConsumer ? classMeta : meta[symbol(c)],
+        })
+    }
+
+    beforeEach(() => {
+        current = 'boot-1'
+        calls = 0
+        classMeta = {
+            injectable: true,
+            provide: createProvideRegistry([
+                'CURRENT',
+                () => {
+                    calls++
+                    return { boot: current }
+                },
+            ]),
+            constructorParams: [{ inject: 'CURRENT' }],
+        }
+    })
+
+    it('must run a class-level factory once per container', async () => {
+        const infact1 = newClassLevelInfact()
+        const infact2 = newClassLevelInfact()
+        const a = await infact1.get(ClassLevelConsumer)
+        current = 'boot-2'
+        const b = await infact2.get(ClassLevelConsumer)
+        expect(calls).toBe(2)
+        expect(a.value).toEqual({ boot: 'boot-1' })
+        expect(b.value).toEqual({ boot: 'boot-2' })
+        expect(a.value).not.toBe(b.value)
+    })
+
+    it('must keep the memo within a container and reset it on _cleanup()', async () => {
+        const infact = newClassLevelInfact()
+        const first = await infact.get(ClassLevelConsumer)
+        expect(first.value).toEqual({ boot: 'boot-1' })
+
+        // without cleanup the memo holds: a fresh instance (new scope) is
+        // created, but the factory is not re-run
+        current = 'boot-2'
+        infact.registerScope('event')
+        const again = await infact.get(ClassLevelConsumer, {
+            fromScope: 'event',
+        })
+        expect(again).not.toBe(first)
+        expect(again.value).toBe(first.value)
+        expect(calls).toBe(1)
+
+        // hot reload: cleanup, then the factory re-runs and binds the new value
+        infact._cleanup()
+        const reloaded = await infact.get(ClassLevelConsumer)
+        expect(reloaded).not.toBe(first)
+        expect(reloaded.value).toEqual({ boot: 'boot-2' })
+        expect(calls).toBe(2)
+    })
+})
+
+describe('failed provide factories are not memoized', () => {
+    it('must report the token of a rejecting async factory', async () => {
+        const messages: string[] = []
+        const details: unknown[] = []
+        const infact = new Infact({
+            describeClass: (c) => meta[symbol(c)],
+            on(event, _targetClass, message, _args, detail) {
+                if (event === 'error') {
+                    messages.push(message)
+                    details.push(detail)
+                }
+            },
+        })
+        const provide = createProvideRegistry([
+            'MAIN',
+            async () => {
+                throw new Error('not ready yet')
+            },
+        ])
+        // the factory's own error reaches the caller, not a TypeError
+        await expect(infact.get(TokenConsumer, { provide })).rejects.toThrow(
+            'not ready yet',
+        )
+        expect(messages[0]).toContain(
+            'Could not inject "MAIN" argument at index 0',
+        )
+        expect(details[0]).toMatchObject({
+            injectToken: 'MAIN',
+            paramIndex: 0,
+            paramTypeName: undefined,
+        })
+    })
+
+    it.each([
+        ['throws', (fn: () => unknown) => fn],
+        ['rejects', (fn: () => unknown) => async () => fn()],
+    ])('must retry a factory that %s', async (_, wrap) => {
+        let attempts = 0
+        const provide = createProvideRegistry([
+            'MAIN',
+            wrap(() => {
+                if (++attempts === 1) {
+                    throw new Error('not ready yet')
+                }
+                return 'ready'
+            }),
+        ])
+        const infact = newInfact()
+        await expect(infact.get(TokenConsumer, { provide })).rejects.toThrow(
+            'not ready yet',
+        )
+        const c = await infact.get(TokenConsumer, { provide })
+        expect(c.value).toBe('ready')
+        expect(attempts).toBe(2)
     })
 })

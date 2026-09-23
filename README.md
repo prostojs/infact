@@ -173,7 +173,7 @@ container.unregisterScope('request-1') // all scoped instances are discarded
 
 ### `container._cleanup()`
 
-Resets the instance registry, instance-registry metadata, and all scopes. Useful for dev-mode hot reload.
+Resets the instance registry, instance-registry metadata, all scopes, and the container's provider cache — every provide factory runs again on its next resolution, including class-level ones whose registry lives on long-lived class metadata. Useful for dev-mode hot reload: a factory that reads "current" state (a connection, a config) re-reads it instead of handing out what the previous boot resolved.
 
 ### `Infact._cleanupGlobal()`
 
@@ -192,7 +192,7 @@ const provide = createProvideRegistry(
 )
 ```
 
-Providers are **lazy** — the factory runs once on first resolution and the result is cached.
+Providers are **lazy** — the factory runs once per container on first resolution, and the result is cached in that container (not on the registry entry, so one registry shared by several containers runs its factory once in each). `_cleanup()` resets the cache. A factory that throws, or returns a promise that rejects, is not cached: the error propagates and the next resolution retries the factory.
 
 ### `createReplaceRegistry(...entries)`
 

@@ -55,9 +55,15 @@ export class Infact<
 
     protected scopes = new Map<string | symbol, TRegistry>()
 
-    constructor(
-        protected options: TInfactOptions<Class, Prop, Param, Custom>,
-    ) {
+    /**
+     * Per-container provide-factory resolution state, keyed by the provide
+     * entry object. Entries usually live on shared (class-level) metadata,
+     * so the memo must not be written onto them: it belongs to this
+     * container and is reset by `_cleanup()`.
+     */
+    private provideMemo: TProvideMemo = new WeakMap()
+
+    constructor(protected options: TInfactOptions<Class, Prop, Param, Custom>) {
         stampOnce()
     }
 
@@ -70,6 +76,7 @@ export class Infact<
         this.registry = {}
         this.instanceRegistries = new WeakMap()
         this.scopes.clear()
+        this.provideMemo = new WeakMap()
     }
 
     /**
@@ -206,6 +213,7 @@ export class Infact<
                     instance: await (getProvidedValue(
                         provide[instanceKey],
                         provide,
+                        this.provideMemo,
                     ) as Promise<IT>),
                     mergedProvide: provide,
                     replace,
@@ -262,6 +270,7 @@ export class Infact<
                 instance: await (getProvidedValue(
                     mergedProvide[instanceKey],
                     mergedProvide,
+                    this.provideMemo,
                 ) as Promise<IT>),
                 mergedProvide,
                 replace,
@@ -304,6 +313,7 @@ export class Infact<
                             resolvedParams[i] = getProvidedValue(
                                 mergedProvide[param.inject],
                                 mergedProvide,
+                                this.provideMemo,
                             )
                         } else if (param.nullable || param.optional) {
                             resolvedParams[i] = UNDEFINED
@@ -350,14 +360,10 @@ export class Infact<
 
                 for (let i = 0; i < resolvedParams.length; i++) {
                     const rp: unknown = resolvedParams[i]
-                    if (
-                        rp &&
-                        rp !== UNDEFINED &&
-                        typeof (rp as Promise<unknown>).then === 'function'
-                    ) {
+                    if (isThenable(rp)) {
                         try {
                             syncContextFn && syncContextFn(classMeta)
-                            resolvedParams[i] = await (rp as Promise<unknown>)
+                            resolvedParams[i] = await rp
                         } catch (e) {
                             throw this.panicParamException(
                                 classConstructor,
@@ -432,10 +438,7 @@ export class Infact<
 
                 for (let i = 0; i < resolvedParams.length; i++) {
                     const rp: unknown = resolvedParams[i]
-                    if (
-                        rp &&
-                        typeof (rp as Promise<unknown>).then === 'function'
-                    ) {
+                    if (isThenable(rp)) {
                         try {
                             syncContextFn && syncContextFn(classMeta)
                             resolvedParams[i] = await (rp as Promise<unknown>)
@@ -570,11 +573,9 @@ export class Infact<
             this.registry[instanceKey] ||
             globalRegistry[instanceKey]
         return {
-            instance:
-                resolved &&
-                typeof (resolved as Promise<unknown>).then === 'function'
-                    ? await (resolved as Promise<IT>)
-                    : (resolved as IT),
+            instance: isThenable(resolved)
+                ? await (resolved as Promise<IT>)
+                : (resolved as IT),
             mergedProvide,
             replace,
         }
@@ -615,15 +616,21 @@ export class Infact<
         index: number,
         hierarchy: string[],
     ) {
-        const typeName = (param.type as unknown as TFunction).name
+        // a token-injected param (`inject`) has no `type` — name the token
+        const typeName = param.type?.name
+        const name =
+            param.inject === undefined
+                ? String(typeName)
+                : provideTokenName(param.inject)
         return this.panic(
             classConstructor,
             error,
-            `Could not inject "${typeName}" argument at index ${index}${
+            `Could not inject "${name}" argument at index ${index}${
                 param.label ? ` (${param.label})` : ''
             }. An exception occurred.${importTypeHint(param.type)}`,
             hierarchy,
             {
+                injectToken: param.inject,
                 paramIndex: index,
                 paramLabel: param.label,
                 paramTypeName: typeName,
@@ -656,8 +663,20 @@ function circularProvideError(chain: TProvideResolutionFrame[]) {
     )
 }
 
+/** Memo value of a provide entry whose factory is running (cycle detection). */
+const RESOLVING = Symbol('resolving')
+
+/**
+ * A provide entry present in the memo has been entered by the container:
+ * it is either in-flight (`RESOLVING`) or holds the factory's result. A
+ * factory that throws, or returns a promise that rejects, is removed so the
+ * next resolution retries it.
+ */
+type TProvideMemo = WeakMap<TProvideMeta, unknown>
+
 function createProvideResolver(
     registry: TProvideRegistry,
+    memo: TProvideMemo,
     stack: TProvideResolutionFrame[],
 ): TProvideResolver {
     return (token) => {
@@ -677,31 +696,49 @@ function createProvideResolver(
                 )}": token is not in the provide registry.`,
             )
         }
-        if (meta.resolving) {
+        if (memo.get(meta) === RESOLVING) {
             // the cycle closes through a token whose factory was entered
             // outside of the resolver chain (the top-level provided token),
             // so it is not on the stack — prepend it to show the loop
             throw circularProvideError([frame, ...stack, frame])
         }
-        return getProvidedValue(meta, registry, [...stack, frame])
+        return getProvidedValue(meta, registry, memo, [...stack, frame])
     }
 }
 
 function getProvidedValue(
     meta: TProvideMeta,
     registry: TProvideRegistry,
+    memo: TProvideMemo,
     stack?: TProvideResolutionFrame[],
 ) {
-    if (!meta.resolved) {
-        meta.resolved = true
-        meta.resolving = true
-        try {
-            meta.value = meta.fn(createProvideResolver(registry, stack ?? []))
-        } finally {
-            meta.resolving = false
-        }
+    if (memo.has(meta)) {
+        const memoized = memo.get(meta)
+        // re-entered while in flight outside the resolver chain
+        return memoized === RESOLVING ? undefined : memoized
     }
-    return meta.value
+    memo.set(meta, RESOLVING)
+    let value: unknown
+    try {
+        value = meta.fn(createProvideResolver(registry, memo, stack ?? []))
+    } catch (e) {
+        // do not memoize a failed factory: the next resolution retries
+        memo.delete(meta)
+        throw e
+    }
+    memo.set(meta, value)
+    if (isThenable(value)) {
+        // nor one whose promise rejects — unless a `_cleanup()` or a retry
+        // already replaced the entry
+        value.then(undefined, () => {
+            if (memo.get(meta) === value) memo.delete(meta)
+        })
+    }
+    return value
+}
+
+function isThenable(v: unknown): v is PromiseLike<unknown> {
+    return !!v && typeof (v as PromiseLike<unknown>).then === 'function'
 }
 
 export function createProvideRegistry(
@@ -711,10 +748,7 @@ export function createProvideRegistry(
     for (const a of args) {
         const [type, fn] = a
         const key = typeof type === 'string' ? type : classSymbol(type)
-        provide[key] = {
-            fn,
-            resolved: false,
-        }
+        provide[key] = { fn }
     }
     return provide
 }
@@ -813,9 +847,11 @@ export interface TInfactConstructorParamMeta {
 
 interface TProvideMeta {
     fn: TProvideFn
+    /** @deprecated unused — resolution state is kept per container */
     resolved?: boolean
+    /** @deprecated unused — resolution state is kept per container */
     value?: unknown
-    /** true while `fn` is running — used for circular resolution detection */
+    /** @deprecated unused — resolution state is kept per container */
     resolving?: boolean
 }
 
