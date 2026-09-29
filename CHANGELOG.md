@@ -1,3 +1,12 @@
+# [0.6.0](https://github.com/prostojs/infact/compare/v0.5.1...v0.6.0) (2026-09-29)
+
+
+### Bug Fixes
+
+* key DI classes by constructor identity instead of source text ([196fca5](https://github.com/prostojs/infact/commit/196fca5ee41138d01eee5660629480cfe28aa6d7))
+
+
+
 ## [0.5.1](https://github.com/prostojs/infact/compare/v0.5.0...v0.5.1) (2026-09-23)
 
 
