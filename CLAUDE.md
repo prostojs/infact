@@ -32,7 +32,7 @@ The entire library lives in a single source file: `src/infact.ts` (~640 lines). 
 
 **Key concepts:**
 
-- **Singleton registries** — instances keyed by `Symbol.for(constructor)` at three tiers: global (static, cross-Infact), per-Infact-instance, per-scope
+- **Singleton registries** — instances keyed by `getClassKey(constructor)` (constructor identity, shared across copies) at three tiers: global (static, cross-Infact), per-Infact-instance, per-scope
 - **Provide registries** — `createProvideRegistry()` builds lazy-factory overrides for any dependency (by class constructor or string token)
 - **Replace registries** — `createReplaceRegistry()` substitutes one class for another throughout a resolution tree
 - **Circular dependency support** — params marked `circular: () => Class` get a pre-created prototype shell filled in after instantiation

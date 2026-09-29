@@ -1,5 +1,9 @@
-import { Infact, TInfactClassMeta, createProvideRegistry } from '..'
-import { symbol } from './infact.artifacts'
+import {
+    Infact,
+    TInfactClassMeta,
+    createProvideRegistry,
+    getClassKey,
+} from '..'
 
 class TokenConsumer {
     constructor(public value: unknown) {}
@@ -25,11 +29,11 @@ class DefConsumer {
 }
 
 const meta: Record<symbol, TInfactClassMeta> = {
-    [symbol(TokenConsumer)]: {
+    [getClassKey(TokenConsumer)]: {
         injectable: true,
         constructorParams: [{ inject: 'MAIN' }],
     },
-    [symbol(DoubleTokenConsumer)]: {
+    [getClassKey(DoubleTokenConsumer)]: {
         injectable: true,
         constructorParams: [
             { inject: 'MAIN' },
@@ -37,11 +41,11 @@ const meta: Record<symbol, TInfactClassMeta> = {
             { inject: 'OTHER' },
         ],
     },
-    [symbol(DbSpace)]: {
+    [getClassKey(DbSpace)]: {
         injectable: true,
         constructorParams: [],
     },
-    [symbol(DefConsumer)]: {
+    [getClassKey(DefConsumer)]: {
         injectable: true,
         constructorParams: [{ inject: 'READABLE_DEF' }, { type: DbSpace }],
     },
@@ -49,7 +53,7 @@ const meta: Record<symbol, TInfactClassMeta> = {
 
 function newInfact() {
     return new Infact({
-        describeClass: (c) => meta[symbol(c)],
+        describeClass: (c) => meta[getClassKey(c)],
     })
 }
 
@@ -194,7 +198,7 @@ describe('provide memo is scoped to the container', () => {
     function newClassLevelInfact() {
         return new Infact({
             describeClass: (c) =>
-                c === ClassLevelConsumer ? classMeta : meta[symbol(c)],
+                c === ClassLevelConsumer ? classMeta : meta[getClassKey(c)],
         })
     }
 
@@ -256,7 +260,7 @@ describe('failed provide factories are not memoized', () => {
         const messages: string[] = []
         const details: unknown[] = []
         const infact = new Infact({
-            describeClass: (c) => meta[symbol(c)],
+            describeClass: (c) => meta[getClassKey(c)],
             on(event, _targetClass, message, _args, detail) {
                 if (event === 'error') {
                     messages.push(message)

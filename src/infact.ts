@@ -1,17 +1,8 @@
+import { getClassKey } from './class-key'
 import { stampOnce } from './module-identity'
 import { TAny, TClassConstructor, TFunction, TObject } from './types'
 
 const globalRegistry: Record<string | symbol, unknown> = {}
-
-const symbolCache = new WeakMap<object, symbol>()
-function classSymbol(c: object): symbol {
-    let s = symbolCache.get(c)
-    if (!s) {
-        s = Symbol.for(c as unknown as string)
-        symbolCache.set(c, s)
-    }
-    return s
-}
 
 type TRegistry = Record<string | symbol, unknown>
 type TSyncContextFn<T extends TObject = TEmpty> = (
@@ -191,10 +182,10 @@ export class Infact<
         const syncContextFn = opts?.syncContextFn
         hierarchy.push(classConstructor.name)
         let classMeta: (Class & TInfactClassMeta<Param>) | undefined
-        let instanceKey = classSymbol(classConstructor)
+        let instanceKey = getClassKey(classConstructor)
         if (replace && replace[instanceKey]) {
             classConstructor = replace?.[instanceKey]
-            instanceKey = classSymbol(classConstructor)
+            instanceKey = getClassKey(classConstructor)
         }
         try {
             classMeta = this.options.describeClass(classConstructor)
@@ -681,7 +672,7 @@ function createProvideResolver(
 ): TProvideResolver {
     return (token) => {
         const frame: TProvideResolutionFrame = {
-            key: typeof token === 'function' ? classSymbol(token) : token,
+            key: typeof token === 'function' ? getClassKey(token) : token,
             token,
         }
         const cycleStart = stack.findIndex((f) => f.key === frame.key)
@@ -747,7 +738,7 @@ export function createProvideRegistry(
     const provide: TProvideRegistry = {}
     for (const a of args) {
         const [type, fn] = a
-        const key = typeof type === 'string' ? type : classSymbol(type)
+        const key = typeof type === 'string' ? type : getClassKey(type)
         provide[key] = { fn }
     }
     return provide
@@ -758,7 +749,7 @@ export function createReplaceRegistry(
     const replace: TReplaceRegistry = {}
     for (const a of args) {
         const [type, newType] = a
-        const key = classSymbol(type)
+        const key = getClassKey(type)
         replace[key] = newType
     }
     return replace

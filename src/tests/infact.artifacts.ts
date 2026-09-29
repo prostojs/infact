@@ -1,9 +1,3 @@
-// mirrors the internal `classSymbol` keying: Symbol.for coerces
-// a class to its source text, so specs and container agree on keys
-export function symbol(v: unknown) {
-    return Symbol.for(v as string)
-}
-
 export class ProviderTestClass1 {
     constructor(public config: string) {}
 }

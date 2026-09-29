@@ -4,6 +4,7 @@ import {
     TInfactEventDetail,
     createProvideRegistry,
     createReplaceRegistry,
+    getClassKey,
     TInfactOptions,
 } from '..'
 import { CircularTestClass1 } from './circular1.artifacts'
@@ -28,7 +29,6 @@ import {
     ConsumerOfObjectParam,
     CircularNonEnum,
     CircularNonEnumDep,
-    symbol,
 } from './infact.artifacts'
 
 interface Empty {}
@@ -37,7 +37,7 @@ const meta: Record<
     symbol,
     TInfactClassMeta<Empty> & TMeta & Record<string | symbol, unknown>
 > = {
-    [symbol(ParentTestClass)]: {
+    [getClassKey(ParentTestClass)]: {
         injectable: true,
         constructorParams: [
             { type: ChildClassTestClass1 },
@@ -56,14 +56,14 @@ const meta: Record<
             ],
         ),
     },
-    [symbol(ChildClassTestClass1)]: {
+    [getClassKey(ChildClassTestClass1)]: {
         injectable: true,
         constructorParams: [
             { type: ProviderTestClass1 },
             { type: ProviderTestClass2 },
         ],
     },
-    [symbol(ChildClassTestClass2)]: {
+    [getClassKey(ChildClassTestClass2)]: {
         injectable: true,
         constructorParams: [
             { type: ProviderTestClass1, inject: 'custom-provider-1' },
@@ -76,29 +76,29 @@ const meta: Record<
             () => new ProviderTestClass2('custom for child'),
         ]),
     },
-    [symbol(ProviderTestClass1)]: {
+    [getClassKey(ProviderTestClass1)]: {
         injectable: true,
         constructorParams: [],
     },
-    [symbol(ProviderTestClass2)]: {
+    [getClassKey(ProviderTestClass2)]: {
         injectable: true,
         constructorParams: [],
     },
 
-    [symbol(CircularTestClass1)]: {
+    [getClassKey(CircularTestClass1)]: {
         injectable: true,
         constructorParams: [
             { type: undefined, circular: () => CircularTestClass2 },
         ],
     },
-    [symbol(CircularTestClass2)]: {
+    [getClassKey(CircularTestClass2)]: {
         injectable: true,
         constructorParams: [
             { type: undefined, circular: () => CircularTestClass1 },
             { type: String },
         ],
     },
-    [symbol(WithProps)]: {
+    [getClassKey(WithProps)]: {
         injectable: true,
         constructorParams: [],
         properties: ['prop1', 'prop2'],
@@ -109,59 +109,59 @@ const meta: Record<
             resolve: () => 'resolved',
         },
     },
-    [symbol(OptionalInject)]: {
+    [getClassKey(OptionalInject)]: {
         injectable: true,
         constructorParams: [
             { type: Object, inject: 'optional-inject', nullable: true },
         ],
     },
-    [symbol(RequiredInject)]: {
+    [getClassKey(RequiredInject)]: {
         injectable: true,
         constructorParams: [
             { type: String, inject: 'required-inject', nullable: false },
         ],
     },
-    [symbol(SimpleDep)]: {
+    [getClassKey(SimpleDep)]: {
         injectable: true,
         constructorParams: [],
     },
-    [symbol(ServiceWithDep)]: {
+    [getClassKey(ServiceWithDep)]: {
         injectable: true,
         constructorParams: [{ type: SimpleDep }],
     },
-    [symbol(OriginalService)]: {
+    [getClassKey(OriginalService)]: {
         injectable: true,
         constructorParams: [],
     },
-    [symbol(ReplacementService)]: {
+    [getClassKey(ReplacementService)]: {
         injectable: true,
         constructorParams: [],
     },
-    [symbol(GlobalService)]: {
+    [getClassKey(GlobalService)]: {
         injectable: true,
         global: true,
         constructorParams: [],
     },
-    [symbol(ScopedService)]: {
+    [getClassKey(ScopedService)]: {
         injectable: true,
         constructorParams: [],
     },
     // NotInjectableDep intentionally has no meta entry
-    [symbol(ConsumerOfNotInjectable)]: {
+    [getClassKey(ConsumerOfNotInjectable)]: {
         injectable: true,
         constructorParams: [{ type: NotInjectableDep }],
     },
-    [symbol(ConsumerOfObjectParam)]: {
+    [getClassKey(ConsumerOfObjectParam)]: {
         injectable: true,
         constructorParams: [{ type: Object }],
     },
-    [symbol(CircularNonEnum)]: {
+    [getClassKey(CircularNonEnum)]: {
         injectable: true,
         constructorParams: [
             { type: undefined, circular: () => CircularNonEnumDep },
         ],
     },
-    [symbol(CircularNonEnumDep)]: {
+    [getClassKey(CircularNonEnumDep)]: {
         injectable: true,
         constructorParams: [
             { type: undefined, circular: () => CircularNonEnum },
@@ -176,13 +176,15 @@ interface TMeta {
 
 const options: TInfactOptions<TMeta, TMeta, Empty> = {
     describeClass: (c) => {
-        return meta[symbol(c)]
+        return meta[getClassKey(c)]
     },
     resolveParam: ({ paramMeta }) => {
         return paramMeta.type === String ? 'resolved string' : undefined
     },
     describeProp(c, key) {
-        return meta[symbol(c)][key as keyof Record<string, unknown>] as TMeta
+        return meta[getClassKey(c)][
+            key as keyof Record<string, unknown>
+        ] as TMeta
     },
     resolveProp({ initialValue, propMeta }) {
         return propMeta?.resolve && propMeta?.resolve(initialValue)
@@ -388,7 +390,7 @@ describe('scopes', () => {
     it('must throw when class has both scopeId and global', async () => {
         const scopedGlobalMeta = {
             ...meta,
-            [symbol(GlobalService)]: {
+            [getClassKey(GlobalService)]: {
                 injectable: true,
                 global: true,
                 scopeId: 'some-scope',
@@ -397,7 +399,7 @@ describe('scopes', () => {
         }
         const freshInfact = new Infact<TMeta>({
             ...options,
-            describeClass: (c) => scopedGlobalMeta[symbol(c)],
+            describeClass: (c) => scopedGlobalMeta[getClassKey(c)],
         })
         freshInfact.registerScope('some-scope')
         await expect(freshInfact.get(GlobalService)).rejects.toThrow(
@@ -475,7 +477,7 @@ describe('error paths', () => {
     it('must throw for non-injectable, non-optional class', async () => {
         class NotInjectable {}
         const noMeta = {
-            [symbol(NotInjectable)]: {
+            [getClassKey(NotInjectable)]: {
                 injectable: false,
                 constructorParams: [],
             },
@@ -484,7 +486,7 @@ describe('error paths', () => {
             ...options,
             describeClass: (c) =>
                 (noMeta as Record<symbol, TInfactClassMeta<Empty> & TMeta>)[
-                    symbol(c)
+                    getClassKey(c)
                 ],
         })
         await expect(freshInfact.get(NotInjectable)).rejects.toThrow(
@@ -529,7 +531,7 @@ describe('error paths', () => {
         class NotInjectable2 {}
         const events: string[] = []
         const noMeta = {
-            [symbol(NotInjectable2)]: {
+            [getClassKey(NotInjectable2)]: {
                 injectable: false,
                 constructorParams: [],
             },
@@ -538,7 +540,7 @@ describe('error paths', () => {
             ...options,
             describeClass: (c) =>
                 (noMeta as Record<symbol, TInfactClassMeta<Empty> & TMeta>)[
-                    symbol(c)
+                    getClassKey(c)
                 ],
             on(event) {
                 events.push(event)

@@ -16,7 +16,9 @@ npm install @prostojs/infact
 import { Infact, TInfactClassMeta } from '@prostojs/infact'
 
 class Database {
-    query(sql: string) { return sql }
+    query(sql: string) {
+        return sql
+    }
 }
 
 class UserRepo {
@@ -25,8 +27,8 @@ class UserRepo {
 
 // 1. Define metadata (however you like)
 const meta: Record<string, TInfactClassMeta> = {
-    Database:  { injectable: true, constructorParams: [] },
-    UserRepo:  { injectable: true, constructorParams: [{ type: Database }] },
+    Database: { injectable: true, constructorParams: [] },
+    UserRepo: { injectable: true, constructorParams: [{ type: Database }] },
 }
 
 // 2. Create the container
@@ -49,12 +51,12 @@ Infact does not read decorators or reflect metadata on its own. Instead, you pro
 
 ```ts
 interface TInfactClassMeta {
-    injectable: boolean               // must be true to allow instantiation
-    constructorParams: ParamMeta[]    // describes each constructor argument
-    global?: boolean                  // share instance across all Infact containers
-    scopeId?: string | symbol         // bind to a named scope
-    provide?: TProvideRegistry        // override dependencies for this class subtree
-    properties?: (string | symbol)[]  // instance properties to resolve after construction
+    injectable: boolean // must be true to allow instantiation
+    constructorParams: ParamMeta[] // describes each constructor argument
+    global?: boolean // share instance across all Infact containers
+    scopeId?: string | symbol // bind to a named scope
+    provide?: TProvideRegistry // override dependencies for this class subtree
+    properties?: (string | symbol)[] // instance properties to resolve after construction
 }
 ```
 
@@ -64,14 +66,14 @@ Each entry in `constructorParams` tells Infact how to resolve one constructor ar
 
 ```ts
 interface TInfactConstructorParamMeta {
-    type?: Function              // the class to instantiate (or String/Number/etc.)
-    inject?: string | symbol     // resolve from provide registry by token instead of type
+    type?: Function // the class to instantiate (or String/Number/etc.)
+    inject?: string | symbol // resolve from provide registry by token instead of type
     circular?: () => Constructor // lazy ref for circular deps (type must be undefined)
-    nullable?: boolean           // allow undefined when unresolvable
-    optional?: boolean           // alias for nullable
-    label?: string               // used in error messages
-    fromScope?: string | symbol  // resolve this param from a specific scope
-    provide?: TProvideRegistry   // extra provide overrides for this param subtree
+    nullable?: boolean // allow undefined when unresolvable
+    optional?: boolean // alias for nullable
+    label?: string // used in error messages
+    fromScope?: string | symbol // resolve this param from a specific scope
+    provide?: TProvideRegistry // extra provide overrides for this param subtree
 }
 ```
 
@@ -79,11 +81,11 @@ interface TInfactConstructorParamMeta {
 
 Infact maintains three levels of singleton registries, checked in this order:
 
-| Tier | Lifetime | Created by |
-|------|----------|------------|
-| **Scope** | Until `unregisterScope()` | `registerScope(id)` + `get(Cls, { fromScope: id })` |
-| **Instance** | Per `Infact` instance | Default for all classes |
-| **Global** | Cross-container (static) | `global: true` in class meta |
+| Tier         | Lifetime                  | Created by                                          |
+| ------------ | ------------------------- | --------------------------------------------------- |
+| **Scope**    | Until `unregisterScope()` | `registerScope(id)` + `get(Cls, { fromScope: id })` |
+| **Instance** | Per `Infact` instance     | Default for all classes                             |
+| **Global**   | Cross-container (static)  | `global: true` in class meta                        |
 
 ## API
 
@@ -102,15 +104,25 @@ interface TInfactOptions<Class, Prop, Param, Custom> {
     // Optional — custom resolver for constructor params
     // Return a value to override default resolution, or undefined to fall through
     resolveParam?: (opts: {
-        paramMeta, classMeta, classConstructor,
-        index, scopeId, customData,
+        paramMeta
+        classMeta
+        classConstructor
+        index
+        scopeId
+        customData
         instantiate: (cls) => Promise<instance>
     }) => unknown | Promise<unknown>
 
     // Optional — custom resolver for instance properties
     resolveProp?: (opts: {
-        instance, key, initialValue, propMeta,
-        classMeta, classConstructor, scopeId, customData,
+        instance
+        key
+        initialValue
+        propMeta
+        classMeta
+        classConstructor
+        scopeId
+        customData
         instantiate: (cls) => Promise<instance>
     }) => unknown | Promise<unknown>
 
@@ -118,7 +130,12 @@ interface TInfactOptions<Class, Prop, Param, Custom> {
     storeProvideRegByInstance?: boolean
 
     // Optional — lifecycle event listener
-    on?: (event: 'new-instance' | 'warn' | 'error', targetClass, message, args?) => void
+    on?: (
+        event: 'new-instance' | 'warn' | 'error',
+        targetClass,
+        message,
+        args?,
+    ) => void
 }
 ```
 
@@ -134,11 +151,11 @@ Options:
 
 ```ts
 interface TInfactGetOptions {
-    provide?: TProvideRegistry    // override providers for this resolution tree
-    replace?: TReplaceRegistry    // substitute classes for this resolution tree
-    customData?: object           // passed through to resolveParam / resolveProp
-    fromScope?: string | symbol   // resolve from a named scope
-    hierarchy?: string[]          // (internal) tracks resolution chain for error messages
+    provide?: TProvideRegistry // override providers for this resolution tree
+    replace?: TReplaceRegistry // substitute classes for this resolution tree
+    customData?: object // passed through to resolveParam / resolveProp
+    fromScope?: string | symbol // resolve from a named scope
+    hierarchy?: string[] // (internal) tracks resolution chain for error messages
 }
 ```
 
@@ -201,14 +218,37 @@ Builds a replace registry — maps one class to another throughout a resolution 
 ```ts
 import { createReplaceRegistry } from '@prostojs/infact'
 
-const replace = createReplaceRegistry(
-    [ProductionMailer, MockMailer],
-)
+const replace = createReplaceRegistry([ProductionMailer, MockMailer])
 
 const service = await container.get(NotificationService, { replace })
 // NotificationService depends on ProductionMailer,
 // but MockMailer will be instantiated instead
 ```
+
+### Class Keys: `getClassKey(Class)`
+
+Every registry — provide, replace, and the singleton registries — files a class under `getClassKey(Class)`: a unique `Symbol(Class.name)` per constructor object, computed once and shared by every copy of `@prostojs/infact` in the process. Two distinct classes are always two keys, even when their source is identical, so class tokens are safe to declare as bare `class {}`:
+
+```ts
+import { createReplaceRegistry, getClassKey } from '@prostojs/infact'
+
+const LoggerToken = class {}
+const UserToken = class {}
+
+getClassKey(LoggerToken) === getClassKey(UserToken) // false
+getClassKey(LoggerToken) === getClassKey(LoggerToken) // true
+
+// replacing UserToken never touches LoggerToken
+const replace = createReplaceRegistry([UserToken, RequestUser])
+```
+
+Use `getClassKey` when you store a class token yourself, e.g. to put a class into a param's `inject` field:
+
+```ts
+constructorParams: [{ inject: getClassKey(LoggerToken) }]
+```
+
+> Up to 0.5.1, classes were keyed by their source text (`Symbol.for(String(Class))`), so identical-source classes — two `class {}` tokens, or bundled classes whose bodies became identical — shared one provide/replace/singleton slot.
 
 ## Features
 
@@ -221,9 +261,10 @@ const meta = {
     AppController: {
         injectable: true,
         constructorParams: [{ type: AuthService }],
-        provide: createProvideRegistry(
-            [AuthService, () => new AuthService('jwt-secret')],
-        ),
+        provide: createProvideRegistry([
+            AuthService,
+            () => new AuthService('jwt-secret'),
+        ]),
     },
     AuthService: {
         injectable: true,
@@ -238,9 +279,10 @@ You can also pass `provide` per-param to scope overrides to a single branch:
 constructorParams: [
     {
         type: RepoA,
-        provide: createProvideRegistry(
-            [DbPool, () => new DbPool('read-replica')],
-        ),
+        provide: createProvideRegistry([
+            DbPool,
+            () => new DbPool('read-replica'),
+        ]),
     },
     { type: RepoB }, // uses default DbPool
 ]
@@ -250,23 +292,17 @@ Or pass `provide` at resolution time:
 
 ```ts
 await container.get(AppController, {
-    provide: createProvideRegistry(
-        [Logger, () => new ConsoleLogger()],
-    ),
+    provide: createProvideRegistry([Logger, () => new ConsoleLogger()]),
 })
 ```
 
 Providers can be keyed by **string token** for non-class dependencies:
 
 ```ts
-constructorParams: [
-    { type: Object, inject: 'config', nullable: true },
-]
+constructorParams: [{ type: Object, inject: 'config', nullable: true }]
 
 // Somewhere upstream:
-provide: createProvideRegistry(
-    ['config', () => ({ port: 3000 })],
-)
+provide: createProvideRegistry(['config', () => ({ port: 3000 })])
 ```
 
 ### Replace (Class Substitution)
@@ -274,9 +310,7 @@ provide: createProvideRegistry(
 Replace registries swap one class for another. The replacement class is instantiated using its own metadata:
 
 ```ts
-const replace = createReplaceRegistry(
-    [OriginalService, MockService],
-)
+const replace = createReplaceRegistry([OriginalService, MockService])
 
 const instance = await container.get(OriginalService, { replace })
 instance instanceof MockService // true
@@ -291,15 +325,11 @@ When two classes depend on each other, mark the circular param with a lazy `circ
 const meta = {
     A: {
         injectable: true,
-        constructorParams: [
-            { type: undefined, circular: () => B },
-        ],
+        constructorParams: [{ type: undefined, circular: () => B }],
     },
     B: {
         injectable: true,
-        constructorParams: [
-            { type: undefined, circular: () => A },
-        ],
+        constructorParams: [{ type: undefined, circular: () => A }],
     },
 }
 ```
@@ -373,8 +403,8 @@ const container = new Infact({
 })
 
 const svc = await container.get(MyService)
-svc.configValue   // 'injected'
-svc.computedProp  // 0 (transform(0) = 0)
+svc.configValue // 'injected'
+svc.computedProp // 0 (transform(0) = 0)
 ```
 
 ### Custom Param Resolution
@@ -412,7 +442,8 @@ Monitor container activity via the `on` callback:
 const container = new Infact({
     describeClass: (cls) => meta[cls.name],
     on(event, targetClass, message, args) {
-        if (event === 'error') console.error(`DI error in ${targetClass.name}: ${message}`)
+        if (event === 'error')
+            console.error(`DI error in ${targetClass.name}: ${message}`)
         if (event === 'warn') console.warn(`DI warning: ${message}`)
         if (event === 'new-instance') console.log(`Created ${targetClass.name}`)
     },
