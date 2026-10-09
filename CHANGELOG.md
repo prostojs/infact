@@ -1,3 +1,12 @@
+## [0.6.1](https://github.com/prostojs/infact/compare/v0.6.0...v0.6.1) (2026-10-09)
+
+
+### Performance Improvements
+
+* sync-first resolution, skip identical registry stamps, handle dropped rejections ([05e60fa](https://github.com/prostojs/infact/commit/05e60fac46efd105a786314f1a0bb3a794d53b0f))
+
+
+
 # [0.6.0](https://github.com/prostojs/infact/compare/v0.5.1...v0.6.0) (2026-09-29)
 
 
