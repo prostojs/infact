@@ -119,12 +119,83 @@ export class Infact<
         })
     }
 
-    public async get<IT extends TObject, O extends boolean>(
+    public get<IT extends TObject, O extends boolean>(
         classConstructor: TClassConstructor<IT>,
         opts?: TInfactGetOptions<Custom>,
         optional: O = false as O,
     ): Promise<IT> {
-        const result = await this._get(classConstructor, opts, optional)
+        try {
+            // a native Promise passes through as is; a value (thenable
+            // instances included) is adopted exactly as an async return
+            return Promise.resolve(
+                this._resolve(classConstructor, opts, optional) as IT,
+            )
+        } catch (e) {
+            return Promise.reject(e)
+        }
+    }
+
+    public setInstanceRegistries(
+        instance: TObject,
+        provide: TProvideRegistry,
+        replace?: TReplaceRegistry,
+        customData?: Custom,
+    ) {
+        // `get()` re-stamps on every resolution (cache hits included):
+        // skip the write when the stamp already holds these exact refs
+        const stamp = this.instanceRegistries.get(instance)
+        if (
+            stamp &&
+            stamp.provide === provide &&
+            stamp.replace === replace &&
+            stamp.customData === customData
+        ) {
+            return
+        }
+        this.instanceRegistries.set(instance, { provide, replace, customData })
+    }
+
+    public getInstanceRegistries(instance: TObject): {
+        provide?: TProvideRegistry
+        replace?: TReplaceRegistry
+        customData?: Custom
+    } {
+        return this.instanceRegistries.get(instance) || {}
+    }
+
+    /**
+     * `get()` without the Promise wrapper: returns the instance synchronously
+     * when every resolution step is synchronous, a Promise otherwise. May
+     * throw synchronously.
+     */
+    private _resolve<IT extends TObject>(
+        classConstructor: TClassConstructor<IT>,
+        opts: TInfactGetOptions<Custom> | undefined,
+        optional: boolean,
+    ): IT | undefined | Promise<IT | undefined> {
+        const result = this._get(classConstructor, opts, optional)
+        return isThenable(result)
+            ? result.then((r) => this._stamp(r, opts))
+            : this._stamp(result, opts)
+    }
+
+    /** A nested dependency resolution: like `get()`, but sync-first. */
+    private _resolveDep<IT extends TObject>(
+        classConstructor: TClassConstructor<IT>,
+        opts: TInfactGetOptions<Custom>,
+        optional: boolean,
+    ): IT | undefined | Promise<IT | undefined> {
+        try {
+            return this._resolve(classConstructor, opts, optional)
+        } catch (e) {
+            return Promise.reject(e)
+        }
+    }
+
+    private _stamp<IT extends TObject>(
+        result: TGetResult<IT> | undefined,
+        opts: TInfactGetOptions<Custom> | undefined,
+    ): IT | undefined {
         if (result) {
             const { instance, mergedProvide, replace } = result
             if (this.options.storeProvideRegByInstance) {
@@ -137,45 +208,20 @@ export class Infact<
             }
             return instance
         }
-        return undefined as unknown as IT
+        return undefined
     }
 
-    public setInstanceRegistries(
-        instance: TObject,
-        provide: TProvideRegistry,
-        replace?: TReplaceRegistry,
-        customData?: Custom,
-    ) {
-        this.instanceRegistries.set(instance, { provide, replace, customData })
-    }
-
-    public getInstanceRegistries(instance: TObject): {
-        provide?: TProvideRegistry
-        replace?: TReplaceRegistry
-        customData?: Custom
-    } {
-        return this.instanceRegistries.get(instance) || {}
-    }
-
-    private async _get<IT extends TObject, O extends boolean>(
+    /**
+     * Resolves a class. Stays synchronous while every step is synchronous
+     * (cached instances, sync provide factories, sync `resolveParam` /
+     * `resolveProp`); the first pending Promise switches the rest of the
+     * resolution to async.
+     */
+    private _get<IT extends TObject>(
         classConstructor: TClassConstructor<IT>,
         opts?: TInfactGetOptions<Custom>,
         optional?: boolean,
-    ): Promise<
-        O extends true
-            ?
-                  | {
-                        instance: IT
-                        mergedProvide: TProvideRegistry
-                        replace?: TReplaceRegistry
-                    }
-                  | undefined
-            : {
-                  instance: IT
-                  mergedProvide: TProvideRegistry
-                  replace?: TReplaceRegistry
-              }
-    > {
+    ): TMaybePromise<TGetResult<IT> | undefined> {
         const hierarchy = opts?.hierarchy || []
         const provide = opts?.provide
         const replace = opts?.replace
@@ -200,15 +246,15 @@ export class Infact<
             if (provide && provide[instanceKey]) {
                 // allow to inject provided instances even if no @Injectable decorator called
                 syncContextFn && syncContextFn(classMeta)
-                return {
-                    instance: await (getProvidedValue(
+                return getResult(
+                    getProvidedValue(
                         provide[instanceKey],
                         provide,
                         this.provideMemo,
-                    ) as Promise<IT>),
-                    mergedProvide: provide,
+                    ),
+                    provide,
                     replace,
-                }
+                )
             }
             if (!optional) {
                 throw this.panicOwnError(
@@ -219,19 +265,7 @@ export class Infact<
                     hierarchy,
                 )
             } else {
-                return undefined as O extends true
-                    ?
-                          | {
-                                instance: IT
-                                mergedProvide: TProvideRegistry
-                                replace: TReplaceRegistry
-                            }
-                          | undefined
-                    : {
-                          instance: IT
-                          mergedProvide: TProvideRegistry
-                          replace: TReplaceRegistry
-                      }
+                return undefined
             }
         }
         const scopeId = classMeta.scopeId || opts?.fromScope
@@ -250,22 +284,23 @@ export class Infact<
                 hierarchy,
             )
         }
-        const scope = scopeId ? this.scopes.get(scopeId)! : ({} as TRegistry)
+        // read-only when unscoped: `registry` below is only `scope` when scoped
+        const scope = scopeId ? this.scopes.get(scopeId)! : NO_SCOPE
         const classProvide = classMeta.provide
         const mergedProvide = classProvide
             ? { ...(provide || {}), ...classProvide }
             : provide || {}
         if (mergedProvide[instanceKey]) {
             syncContextFn && syncContextFn(classMeta)
-            return {
-                instance: await (getProvidedValue(
+            return getResult(
+                getProvidedValue(
                     mergedProvide[instanceKey],
                     mergedProvide,
                     this.provideMemo,
-                ) as Promise<IT>),
+                ),
                 mergedProvide,
                 replace,
-            }
+            )
         }
         if (
             !(supportGlobalRegistries && this.registry[instanceKey]) &&
@@ -277,298 +312,366 @@ export class Infact<
                 : classMeta.global
                   ? globalRegistry
                   : this.registry
-            const params = classMeta.constructorParams || []
-            const isCircular = !!params.some((p) => !!p.circular)
-            let resolveCreation: ((v: unknown) => void) | undefined
-            let rejectCreation: ((e: unknown) => void) | undefined
-            if (isCircular) {
-                registry[instanceKey] = Object.create(
-                    classConstructor.prototype,
-                ) // empty "instance"
-            } else {
-                const promise = new Promise((resolve, reject) => {
-                    resolveCreation = resolve
-                    rejectCreation = reject
-                })
-                promise.catch(() => {}) // prevent unhandled rejection when no concurrent awaiter
-                registry[instanceKey] = promise
+            const created = runSyncFirst(
+                this._create(
+                    classConstructor,
+                    classMeta,
+                    opts,
+                    mergedProvide,
+                    registry,
+                    instanceKey,
+                    scopeId,
+                    hierarchy,
+                ),
+            )
+            if (isThenable(created)) {
+                // the creation suspended: from now on concurrent resolutions
+                // (and registry readers) see a real Promise placeholder
+                const placeholder = registry[instanceKey]
+                if (placeholder instanceof PendingCreation) {
+                    registry[instanceKey] = placeholder.promise()
+                }
+                return created.then(() =>
+                    this._finish<IT>(
+                        hierarchy,
+                        syncContextFn,
+                        classMeta,
+                        scope,
+                        instanceKey,
+                        mergedProvide,
+                        replace,
+                    ),
+                )
+            }
+        }
+        return this._finish<IT>(
+            hierarchy,
+            syncContextFn,
+            classMeta,
+            scope,
+            instanceKey,
+            mergedProvide,
+            replace,
+        )
+    }
+
+    private _finish<IT extends TObject>(
+        hierarchy: string[],
+        syncContextFn: TSyncContextFn<TAny> | undefined,
+        classMeta: Class & TInfactClassMeta<Param>,
+        scope: TRegistry,
+        instanceKey: symbol,
+        mergedProvide: TProvideRegistry,
+        replace: TReplaceRegistry | undefined,
+    ): TMaybePromise<TGetResult<IT>> {
+        hierarchy.pop()
+        syncContextFn && syncContextFn(classMeta)
+        return getResult<IT>(
+            scope[instanceKey] ||
+                this.registry[instanceKey] ||
+                globalRegistry[instanceKey],
+            mergedProvide,
+            replace,
+        )
+    }
+
+    /**
+     * Creates an instance and files it under `registry[instanceKey]`.
+     * Written as a generator run by `runSyncFirst`: every `yield` is an
+     * `await` that only suspends when the yielded value is a thenable.
+     */
+    private *_create<IT extends TObject>(
+        classConstructor: TClassConstructor<IT>,
+        classMeta: Class & TInfactClassMeta<Param>,
+        opts: TInfactGetOptions<Custom> | undefined,
+        mergedProvide: TProvideRegistry,
+        registry: TRegistry,
+        instanceKey: symbol,
+        scopeId: string | symbol | undefined,
+        hierarchy: string[],
+    ): Generator<unknown, void, unknown> {
+        const provide = opts?.provide
+        const replace = opts?.replace
+        const syncContextFn = opts?.syncContextFn
+        const params = classMeta.constructorParams || []
+        let isCircular = false
+        for (let i = 0; i < params.length; i++) {
+            if (params[i].circular) {
+                isCircular = true
+                break
+            }
+        }
+        let pending: PendingCreation | undefined
+        if (isCircular) {
+            registry[instanceKey] = Object.create(classConstructor.prototype) // empty "instance"
+        } else {
+            pending = new PendingCreation()
+            registry[instanceKey] = pending
+        }
+        // shared by every resolveParam/resolveProp call of this creation
+        let instantiate:
+            | (<T extends TObject>(c: TClassConstructor<T>) => Promise<T>)
+            | undefined
+        const getInstantiate = () =>
+            (instantiate ??= (c) =>
+                this.get(c, {
+                    customData: opts?.customData,
+                    fromScope: opts?.fromScope,
+                    syncContextFn,
+                    hierarchy,
+                    provide,
+                    replace,
+                }))
+
+        // Resolving Params
+        const resolvedParams: unknown[] = []
+        let resolvedProps:
+            | Record<string | symbol, Promise<unknown> | unknown>
+            | undefined
+        try {
+            for (let i = 0; i < params.length; i++) {
+                const param = params[i]
+                if (param.inject) {
+                    if (mergedProvide && mergedProvide[param.inject]) {
+                        resolvedParams[i] = getProvidedValue(
+                            mergedProvide[param.inject],
+                            mergedProvide,
+                            this.provideMemo,
+                        )
+                    } else if (param.nullable || param.optional) {
+                        resolvedParams[i] = UNDEFINED
+                    } else {
+                        /* istanbul ignore next line */
+                        throw this.panicOwnError(
+                            classConstructor,
+                            `Could not inject ${JSON.stringify(
+                                param.inject,
+                            )} argument ${
+                                param.label
+                                    ? `labeled as "${param.label}"`
+                                    : `with index ${i}`
+                            }`,
+                            hierarchy,
+                            {
+                                injectToken: param.inject,
+                                paramIndex: i,
+                                paramLabel: param.label,
+                            },
+                        )
+                    }
+                } else if (this.options.resolveParam) {
+                    resolvedParams[i] = this.options.resolveParam({
+                        classMeta,
+                        classConstructor,
+                        index: i,
+                        scopeId,
+                        paramMeta: param,
+                        customData: opts?.customData,
+                        instantiate: getInstantiate(),
+                    })
+                }
             }
 
-            try {
-                // Resolving Params
-                const resolvedParams = []
-                for (let i = 0; i < params.length; i++) {
-                    const param = params[i]
-                    if (param.inject) {
-                        if (mergedProvide && mergedProvide[param.inject]) {
-                            resolvedParams[i] = getProvidedValue(
-                                mergedProvide[param.inject],
-                                mergedProvide,
-                                this.provideMemo,
-                            )
-                        } else if (param.nullable || param.optional) {
-                            resolvedParams[i] = UNDEFINED
-                        } else {
-                            /* istanbul ignore next line */
-                            throw this.panicOwnError(
-                                classConstructor,
-                                `Could not inject ${JSON.stringify(
-                                    param.inject,
-                                )} argument ${
-                                    param.label
-                                        ? `labeled as "${param.label}"`
-                                        : `with index ${i}`
-                                }`,
-                                hierarchy,
-                                {
-                                    injectToken: param.inject,
-                                    paramIndex: i,
-                                    paramLabel: param.label,
-                                },
-                            )
-                        }
-                    } else if (this.options.resolveParam) {
-                        resolvedParams[i] = this.options.resolveParam({
-                            classMeta,
+            for (let i = 0; i < resolvedParams.length; i++) {
+                const rp: unknown = resolvedParams[i]
+                if (isThenable(rp)) {
+                    try {
+                        syncContextFn && syncContextFn(classMeta)
+                        resolvedParams[i] = yield rp
+                    } catch (e) {
+                        throw this.panicParamException(
                             classConstructor,
-                            index: i,
-                            scopeId,
-                            paramMeta: param,
-                            customData: opts?.customData,
-                            instantiate: (c) => {
-                                return this.get(c, {
-                                    customData: opts?.customData,
-                                    fromScope: opts?.fromScope,
-                                    syncContextFn,
+                            e as Error,
+                            params[i],
+                            i,
+                            hierarchy,
+                        )
+                    }
+                }
+            }
+
+            // params resolved through a nested `get`: the parent's context is
+            // restored after each of them (also when it completed synchronously)
+            let viaGet: boolean[] | undefined
+            for (let i = 0; i < params.length; i++) {
+                const param = params[i]
+                if (typeof resolvedParams[i] === 'undefined') {
+                    if (param.type === undefined && !param.circular) {
+                        this.raiseEvent(
+                            'warn',
+                            classConstructor,
+                            `constructor() expects argument ${
+                                param.label
+                                    ? `labeled as "${param.label}"`
+                                    : `#${i}`
+                            } that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`,
+                        )
+                    } else if (param.type === undefined && param.circular) {
+                        param.type = (
+                            param.circular as TFunction
+                        )() as TFunction
+                    }
+                    if (typeof param.type === 'function') {
+                        if (
+                            [String, Number, Date, Array].includes(
+                                param.type as TAny,
+                            )
+                        ) {
+                            if (!param.nullable && !param.optional) {
+                                throw this.panicOwnError(
+                                    classConstructor,
+                                    `Could not inject "${
+                                        (param.type as unknown as TFunction)
+                                            .name
+                                    }" argument at index ${i}${
+                                        param.label ? ` (${param.label})` : ''
+                                    }. The param was not resolved to a value.`,
                                     hierarchy,
-                                    provide,
-                                    replace,
-                                })
+                                )
+                            }
+                        }
+                        ;(viaGet ??= [])[i] = true
+                        resolvedParams[i] = this._resolveDep(
+                            param.type as TClassConstructor<IT>,
+                            {
+                                provide: param.provide
+                                    ? { ...mergedProvide, ...param.provide }
+                                    : mergedProvide,
+                                replace,
+                                hierarchy,
+                                syncContextFn,
+                                fromScope: param.fromScope,
+                                customData: opts?.customData,
                             },
-                        })
+                            !!(param.optional || param.nullable),
+                        )
                     }
                 }
+                if (resolvedParams[i] === UNDEFINED) {
+                    resolvedParams[i] = undefined
+                }
+            }
 
-                for (let i = 0; i < resolvedParams.length; i++) {
-                    const rp: unknown = resolvedParams[i]
-                    if (isThenable(rp)) {
+            for (let i = 0; i < resolvedParams.length; i++) {
+                const rp: unknown = resolvedParams[i]
+                if (isThenable(rp) || viaGet?.[i]) {
+                    try {
+                        syncContextFn && syncContextFn(classMeta)
+                        resolvedParams[i] = isThenable(rp) ? yield rp : rp
+                    } catch (e) {
+                        throw this.panicParamException(
+                            classConstructor,
+                            e as Error,
+                            params[i],
+                            i,
+                            hierarchy,
+                        )
+                    }
+                }
+            }
+
+            const instance = new classConstructor(...(resolvedParams as []))
+            if (isCircular) {
+                Object.defineProperties(
+                    registry[instanceKey] as TObject,
+                    Object.getOwnPropertyDescriptors(instance),
+                )
+            }
+
+            // Resolving Props
+            if (
+                this.options.describeProp &&
+                this.options.resolveProp &&
+                classMeta.properties &&
+                classMeta.properties.length
+            ) {
+                resolvedProps = {}
+                for (const prop of classMeta.properties) {
+                    const initialValue = (
+                        instance as Record<string | symbol, unknown>
+                    )[prop]
+                    let propMeta: Prop | undefined
+                    try {
+                        propMeta = this.options.describeProp(
+                            classConstructor,
+                            prop,
+                        )
+                    } catch (e) {
+                        throw this.panic(
+                            classConstructor,
+                            e as Error,
+                            `Could not process prop "${prop as string}". An error occurred on "describeProp" function.\n${
+                                (e as Error).message
+                            }`,
+                            hierarchy,
+                        )
+                    }
+                    if (propMeta) {
                         try {
-                            syncContextFn && syncContextFn(classMeta)
-                            resolvedParams[i] = await rp
-                        } catch (e) {
-                            throw this.panicParamException(
+                            resolvedProps[prop] = this.options.resolveProp({
+                                classMeta,
                                 classConstructor,
-                                e as Error,
-                                params[i],
-                                i,
-                                hierarchy,
-                            )
-                        }
-                    }
-                }
-
-                for (let i = 0; i < params.length; i++) {
-                    const param = params[i]
-                    if (typeof resolvedParams[i] === 'undefined') {
-                        if (param.type === undefined && !param.circular) {
-                            this.raiseEvent(
-                                'warn',
-                                classConstructor,
-                                `constructor() expects argument ${
-                                    param.label
-                                        ? `labeled as "${param.label}"`
-                                        : `#${i}`
-                                } that is undefined. This might happen when Circular Dependency occurs. To handle Circular Dependencies please specify circular meta for param.`,
-                            )
-                        } else if (param.type === undefined && param.circular) {
-                            param.type = (
-                                param.circular as TFunction
-                            )() as TFunction
-                        }
-                        if (typeof param.type === 'function') {
-                            if (
-                                [String, Number, Date, Array].includes(
-                                    param.type as TAny,
-                                )
-                            ) {
-                                if (!param.nullable && !param.optional) {
-                                    throw this.panicOwnError(
-                                        classConstructor,
-                                        `Could not inject "${
-                                            (param.type as unknown as TFunction)
-                                                .name
-                                        }" argument at index ${i}${
-                                            param.label
-                                                ? ` (${param.label})`
-                                                : ''
-                                        }. The param was not resolved to a value.`,
-                                        hierarchy,
-                                    )
-                                }
-                            }
-                            resolvedParams[i] = this.get(
-                                param.type as TClassConstructor<IT>,
-                                {
-                                    provide: param.provide
-                                        ? { ...mergedProvide, ...param.provide }
-                                        : mergedProvide,
-                                    replace,
-                                    hierarchy,
-                                    syncContextFn,
-                                    fromScope: param.fromScope,
-                                    customData: opts?.customData,
-                                },
-                                param.optional || param.nullable,
-                            )
-                        }
-                    }
-                    if (resolvedParams[i] === UNDEFINED) {
-                        resolvedParams[i] = undefined
-                    }
-                }
-
-                for (let i = 0; i < resolvedParams.length; i++) {
-                    const rp: unknown = resolvedParams[i]
-                    if (isThenable(rp)) {
-                        try {
-                            syncContextFn && syncContextFn(classMeta)
-                            resolvedParams[i] = await (rp as Promise<unknown>)
-                        } catch (e) {
-                            throw this.panicParamException(
-                                classConstructor,
-                                e as Error,
-                                params[i],
-                                i,
-                                hierarchy,
-                            )
-                        }
-                    }
-                }
-
-                const instance = new classConstructor(...(resolvedParams as []))
-                if (isCircular) {
-                    Object.defineProperties(
-                        registry[instanceKey] as TObject,
-                        Object.getOwnPropertyDescriptors(instance),
-                    )
-                }
-
-                // Resolving Props
-                if (
-                    this.options.describeProp &&
-                    this.options.resolveProp &&
-                    classMeta.properties &&
-                    classMeta.properties.length
-                ) {
-                    const resolvedProps: Record<
-                        string | symbol,
-                        Promise<unknown> | unknown
-                    > = {}
-                    for (const prop of classMeta.properties) {
-                        const initialValue = (
-                            instance as Record<string | symbol, unknown>
-                        )[prop]
-                        let propMeta: Prop | undefined
-                        try {
-                            propMeta = this.options.describeProp(
-                                classConstructor,
-                                prop,
-                            )
+                                initialValue,
+                                key: prop,
+                                scopeId,
+                                instance,
+                                propMeta,
+                                customData: opts?.customData,
+                                instantiate: getInstantiate(),
+                            })
                         } catch (e) {
                             throw this.panic(
                                 classConstructor,
                                 e as Error,
-                                `Could not process prop "${prop as string}". An error occurred on "describeProp" function.\n${
-                                    (e as Error).message
-                                }`,
-                                hierarchy,
-                            )
-                        }
-                        if (propMeta) {
-                            try {
-                                resolvedProps[prop] = this.options.resolveProp({
-                                    classMeta,
-                                    classConstructor,
-                                    initialValue,
-                                    key: prop,
-                                    scopeId,
-                                    instance,
-                                    propMeta,
-                                    customData: opts?.customData,
-                                    instantiate: (c) => {
-                                        return this.get(c, {
-                                            customData: opts?.customData,
-                                            fromScope: opts?.fromScope,
-                                            syncContextFn,
-                                            hierarchy,
-                                            provide,
-                                            replace,
-                                        })
-                                    },
-                                })
-                            } catch (e) {
-                                throw this.panic(
-                                    classConstructor,
-                                    e as Error,
-                                    `Could not inject prop "${
-                                        prop as string
-                                    }". An exception occurred: ` +
-                                        (e as Error).message,
-                                    hierarchy,
-                                )
-                            }
-                        }
-                    }
-                    for (const [prop, value] of Object.entries(resolvedProps)) {
-                        try {
-                            syncContextFn && syncContextFn(classMeta)
-                            resolvedProps[prop] = value
-                                ? await (value as Promise<unknown>)
-                                : value
-                        } catch (e) {
-                            throw this.panic(
-                                classConstructor,
-                                e as Error,
-                                `Could not inject prop "${prop}". ` +
-                                    'An exception occurred: ' +
+                                `Could not inject prop "${
+                                    prop as string
+                                }". An exception occurred: ` +
                                     (e as Error).message,
                                 hierarchy,
                             )
                         }
                     }
-                    Object.assign(instance as TObject, resolvedProps)
                 }
-
-                this.raiseEvent(
-                    'new-instance',
-                    classConstructor,
-                    '',
-                    resolvedParams,
-                )
-                if (!isCircular) {
-                    registry[instanceKey] = instance
+                for (const [prop, value] of Object.entries(resolvedProps)) {
+                    try {
+                        syncContextFn && syncContextFn(classMeta)
+                        resolvedProps[prop] = isThenable(value)
+                            ? yield value
+                            : value
+                    } catch (e) {
+                        throw this.panic(
+                            classConstructor,
+                            e as Error,
+                            `Could not inject prop "${prop}". ` +
+                                'An exception occurred: ' +
+                                (e as Error).message,
+                            hierarchy,
+                        )
+                    }
                 }
-                resolveCreation?.(instance)
-            } catch (e) {
-                if (rejectCreation) {
-                    delete registry[instanceKey]
-                    rejectCreation(e)
-                }
-                throw e
+                Object.assign(instance as TObject, resolvedProps)
             }
-        }
-        hierarchy.pop()
-        syncContextFn && syncContextFn(classMeta)
-        const resolved =
-            scope[instanceKey] ||
-            this.registry[instanceKey] ||
-            globalRegistry[instanceKey]
-        return {
-            instance: isThenable(resolved)
-                ? await (resolved as Promise<IT>)
-                : (resolved as IT),
-            mergedProvide,
-            replace,
+
+            this.raiseEvent(
+                'new-instance',
+                classConstructor,
+                '',
+                resolvedParams,
+            )
+            if (!isCircular) {
+                registry[instanceKey] = instance
+            }
+            pending?.resolve(instance)
+        } catch (e) {
+            // a failure abandons the params/props still pending: their
+            // rejections must not surface as unhandled
+            markHandled(resolvedParams)
+            if (resolvedProps) markHandled(Object.values(resolvedProps))
+            if (pending) {
+                delete registry[instanceKey]
+                pending.reject(e)
+            }
+            throw e
         }
     }
 
@@ -730,6 +833,135 @@ function getProvidedValue(
 
 function isThenable(v: unknown): v is PromiseLike<unknown> {
     return !!v && typeof (v as PromiseLike<unknown>).then === 'function'
+}
+
+const noop = () => {}
+
+function markHandled(values: unknown[]) {
+    for (const v of values) {
+        if (isThenable(v)) v.then(undefined, noop)
+    }
+}
+
+type TMaybePromise<T> = T | Promise<T>
+
+/** Registry lookups of an unscoped resolution (never written). */
+const NO_SCOPE: TRegistry = Object.freeze({}) as TRegistry
+
+/**
+ * Registry placeholder of a non-circular instance under creation. A
+ * thenable whose Promise is only allocated when someone waits on it: a
+ * concurrent or re-entrant resolution, or the creation itself suspending
+ * (then `_get` swaps the placeholder for the Promise).
+ */
+class PendingCreation {
+    private p?: Promise<unknown>
+    private res?: (v: unknown) => void
+    private rej?: (e: unknown) => void
+    /** 0 = in creation, 1 = resolved, 2 = rejected */
+    private state: 0 | 1 | 2 = 0
+    private value: unknown
+
+    promise(): Promise<unknown> {
+        if (!this.p) {
+            // a waiter that adopted this thenable may only call `then` after
+            // the creation settled synchronously
+            this.p =
+                this.state === 1
+                    ? Promise.resolve(this.value)
+                    : this.state === 2
+                      ? Promise.reject(this.value)
+                      : new Promise((resolve, reject) => {
+                            this.res = resolve
+                            this.rej = reject
+                        })
+            this.p.catch(() => {}) // prevent unhandled rejection when no concurrent awaiter
+        }
+        return this.p
+    }
+
+    then<T1 = unknown, T2 = never>(
+        onFulfilled?: ((v: unknown) => T1 | PromiseLike<T1>) | null,
+        onRejected?: ((e: unknown) => T2 | PromiseLike<T2>) | null,
+    ): Promise<T1 | T2> {
+        return this.promise().then(onFulfilled, onRejected)
+    }
+
+    resolve(instance: unknown) {
+        this.state = 1
+        this.value = instance
+        this.res?.(instance)
+    }
+
+    reject(e: unknown) {
+        this.state = 2
+        this.value = e
+        this.rej?.(e)
+    }
+}
+
+interface TGetResult<IT> {
+    instance: IT
+    mergedProvide: TProvideRegistry
+    replace?: TReplaceRegistry
+}
+
+/** Wraps a resolved (or pending) instance into a `TGetResult`. */
+function getResult<IT>(
+    value: unknown,
+    mergedProvide: TProvideRegistry,
+    replace: TReplaceRegistry | undefined,
+): TMaybePromise<TGetResult<IT>> {
+    return isThenable(value)
+        ? Promise.resolve(value as PromiseLike<IT>).then((instance) => ({
+              instance,
+              mergedProvide,
+              replace,
+          }))
+        : { instance: value as IT, mergedProvide, replace }
+}
+
+/**
+ * Drives a generator whose `yield`s stand for `await`s: it runs
+ * synchronously while the yielded values are not thenables and switches to
+ * async at the first thenable. Returns the generator's result, or a Promise
+ * of it once it went async; a synchronous failure throws.
+ */
+function runSyncFirst<R>(
+    gen: Generator<unknown, R, unknown>,
+): TMaybePromise<R> {
+    let step = gen.next()
+    while (!step.done) {
+        if (isThenable(step.value)) {
+            return resumeAsync(gen, step.value)
+        }
+        step = gen.next(step.value)
+    }
+    return step.value
+}
+
+async function resumeAsync<R>(
+    gen: Generator<unknown, R, unknown>,
+    pending: PromiseLike<unknown>,
+): Promise<R> {
+    for (;;) {
+        let value: unknown
+        let failed = false
+        try {
+            value = await pending
+        } catch (e) {
+            value = e
+            failed = true
+        }
+        let step = failed ? gen.throw(value) : gen.next(value)
+        while (!step.done && !isThenable(step.value)) {
+            step = gen.next(step.value)
+        }
+        if (step.done) {
+            return step.value
+        }
+        pending = step.value as PromiseLike<unknown>
+    }
 }
 
 export function createProvideRegistry(
