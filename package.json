@@ -47,7 +47,7 @@
         "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md"
     },
     "devDependencies": {
-        "@prostojs/dye": "^0.4.9",
+        "@prostojs/dye": "^0.5.0",
         "@types/node": "^22.19.11",
         "@vitest/coverage-v8": "^4.0.18",
         "conventional-changelog": "^3.1.25",

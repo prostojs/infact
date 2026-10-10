@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       '@prostojs/dye':
-        specifier: ^0.4.9
-        version: 0.4.9
+        specifier: ^0.5.0
+        version: 0.5.0
       '@types/node':
         specifier: ^22.19.11
         version: 22.19.11
@@ -553,8 +553,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@prostojs/dye@0.4.9':
-    resolution: {integrity: sha512-oC7k3vQO5yErAgGSJHEI4uO48d0JQ14DCjnUwqCMO0a5XD81ES9PGYjLDCAIlfYbALuU19Wc1FQv+QJucFigwQ==}
+  '@prostojs/dye@0.5.0':
+    resolution: {integrity: sha512-pzFi3/sPBPJMGgMnMJm/AYTDpa5YMsGUDfXwsKb7PLBC0Qs6W5fNWRwEfxIXlEA5K/F+LcDGGoEUljpyawksgQ==}
 
   '@rolldown/binding-android-arm64@1.0.0-rc.5':
     resolution: {integrity: sha512-zCEmUrt1bggwgBgeKLxNj217J1OrChrp3jJt24VK9jAharSTeVaHODNL+LpcQVhRz+FktYWfT9cjo5oZ99ZLpg==}
@@ -2200,7 +2200,7 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.50.0':
     optional: true
 
-  '@prostojs/dye@0.4.9': {}
+  '@prostojs/dye@0.5.0': {}
 
   '@rolldown/binding-android-arm64@1.0.0-rc.5':
     optional: true
